@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20241118.1
+
+Add automated cleanup to ONT transfer script.
+
 ## 20241108.1
 
 Add exception handling for nonnumeric flowcell ids in bioinfo_tab

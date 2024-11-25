@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import tempfile
 from unittest.mock import Mock, call, mock_open, patch
 
@@ -30,6 +31,7 @@ def setup_test_fixture():
     for dir in [
         args.source_dir,
         args.dest_dir,
+        args.dest_dir + "/nosync",
         args.dest_dir_qc,
         args.archive_dir,
         args.minknow_logs_dir,
@@ -74,6 +76,41 @@ def setup_test_fixture():
     yield args, tmp, file_paths
 
     tmp.cleanup()
+
+
+def test_main_delete(setup_test_fixture):
+    """Check so that remotely archived runs runs and empty dirs
+    are deleted from the local archive.
+    """
+
+    # Run fixture
+    args, tmp, file_paths = setup_test_fixture
+
+    # Locally and remotely archived run
+    run_path = f"{args.archive_dir}/experiment/sample/{DUMMY_RUN_NAME}"
+    os.makedirs(run_path)
+    remote_run_path = f"{args.dest_dir}/nosync/{DUMMY_RUN_NAME}"
+    os.makedirs(remote_run_path)
+
+    # Locally but not remotely archived run
+    innocent_run_path = f"{args.archive_dir}/innocent_experiment/innocent_sample/{DUMMY_RUN_NAME.replace('randomhash', 'dontDeleteMe')}"
+    os.makedirs(innocent_run_path)
+
+    with patch("shutil.rmtree", side_effect=shutil.rmtree) as mock_rmtree, patch(
+        "os.rmdir", side_effect=os.rmdir
+    ) as mock_rmdir:
+        # Run code
+        instrument_transfer.main(args)
+
+        # Assert deletions
+        mock_rmtree.assert_has_calls([call(f"{run_path}")])
+        mock_rmdir.assert_has_calls(
+            [
+                call(f"{args.archive_dir}/experiment/sample"),
+                call(f"{args.archive_dir}/experiment"),
+            ]
+        )
+        assert os.path.exists(innocent_run_path)
 
 
 def test_main_ignore_CTC(setup_test_fixture):
