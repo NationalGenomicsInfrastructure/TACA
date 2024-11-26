@@ -11,6 +11,13 @@ import subprocess
 from datetime import datetime as dt
 from glob import glob
 
+RUN_PATTERN = re.compile(
+    # Run folder name expected as yyyymmdd_HHMM_1A-3H/MN19414_flowCellId_randomHash
+    # Flow cell names starting with "CTC" are configuration test cells and should not be included
+    # As of december 2023, the third column (3A-3H) is excluded, because it will be used by Clinical Genomics
+    r"^\d{8}_\d{4}_(([1-2][A-H])|(MN19414))_(?!CTC)[A-Za-z0-9]+_[A-Za-z0-9]+$"
+)
+
 
 def main(args):
     """Find ONT runs and transfer them to storage.
@@ -24,12 +31,6 @@ def main(args):
 
     logging.info("Starting script...")
 
-    run_pattern = re.compile(
-        # Run folder name expected as yyyymmdd_HHMM_1A-3H/MN19414_flowCellId_randomHash
-        # Flow cell names starting with "CTC" are configuration test cells and should not be included
-        # As of december 2023, the third column (3A-3H) is excluded, because it will be used by Clinical Genomics
-        r"^\d{8}_\d{4}_(([1-2][A-H])|(MN19414))_(?!CTC)[A-Za-z0-9]+_[A-Za-z0-9]+$"
-    )
     rsync_log = os.path.join(args.source_dir, "rsync_log.txt")
 
     logging.info("Parsing instrument position logs...")
@@ -37,12 +38,17 @@ def main(args):
     logging.info("Subsetting QC and MUX metrics...")
     pore_counts = get_pore_counts(position_logs)
 
+    handle_runs(pore_counts, args, rsync_log)
+    delete_archived_runs(args)
+
+
+def handle_runs(pore_counts, args, rsync_log):
     logging.info("Finding runs...")
     # Look for dirs matching run pattern 3 levels deep from source
     run_paths = [
         path
         for path in glob(os.path.join(args.source_dir, "*", "*", "*"), recursive=True)
-        if re.match(run_pattern, os.path.basename(path))
+        if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} runs...")
 
@@ -67,6 +73,50 @@ def main(args):
             sync_to_storage(run_path, rsync_dest, rsync_log)
         else:
             final_sync_to_storage(run_path, rsync_dest, args.archive_dir, rsync_log)
+
+
+def delete_archived_runs(args):
+    logging.info("Finding locally archived runs...")
+    # Look for dirs matching run pattern inside archive dir
+    run_paths = [
+        path
+        for path in glob(os.path.join(args.archive_dir, "*", "*", "*"), recursive=True)
+        if re.match(RUN_PATTERN, os.path.basename(path))
+    ]
+    logging.info(f"Found {len(run_paths)} locally archived runs...")
+
+    preproc_archive_contents = os.listdir(os.path.join(args.dest_dir, "nosync"))
+
+    # Iterate over runs
+    for run_path in run_paths:
+        logging.info(f"Handling locally archived run {run_path}...")
+        run_name = os.path.basename(run_path)
+
+        if run_name in preproc_archive_contents:
+            logging.info(
+                f"Locally archived run {run_path} was found in the preproc archive. Deleting..."
+            )
+            shutil.rmtree(run_path)
+        else:
+            logging.info(
+                f"Locally archived run {run_path} was not found in the preproc archive. Skipping..."
+            )
+            continue
+
+    # Remove empty dirs
+    sample_dirs = set([os.path.dirname(run_path) for run_path in run_paths])
+    experiment_dirs = set([os.path.dirname(sample_dir) for sample_dir in sample_dirs])
+
+    for sample_dir in sample_dirs:
+        if not os.listdir(sample_dir):
+            logging.info(f"Removing empty dir '{sample_dir}'.")
+            os.rmdir(sample_dir)
+
+    # Remove empty experiment dirs
+    for experiment_dir in experiment_dirs:
+        if not os.listdir(experiment_dir):
+            logging.info(f"Removing empty dir '{experiment_dir}'.")
+            os.rmdir(experiment_dir)
 
 
 def sequencing_finished(run_path: str) -> bool:
