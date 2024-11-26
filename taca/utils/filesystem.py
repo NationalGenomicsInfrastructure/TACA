@@ -4,7 +4,7 @@ import contextlib
 import os
 import shutil
 
-RUN_RE = r"^\d{6,8}_[a-zA-Z\d\-]+_\d{2,}_[AB0][A-Z\d\-]+$"
+RUN_RE_ILLUMINA = r"^\d{6,8}_[a-zA-Z\d\-]+_\d{2,}_[AB0][A-Z\d\-]+$"
 RUN_RE_ONT = r"^(\d{8})_(\d{4})_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)$"
 RUN_RE_ELEMENT = r"^\d{8}_AV\d{6}_[AB]\d{10}$"
 

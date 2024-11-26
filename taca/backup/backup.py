@@ -69,7 +69,7 @@ class backup_utils:
             archive_path = self.archive_dirs[run_type]
             run = run_vars(self.run, archive_path)
             if not (
-                re.match(filesystem.RUN_RE, run.name)
+                re.match(filesystem.RUN_RE_ILLUMINA, run.name)
                 or re.match(filesystem.RUN_RE_ONT, run.name)
                 or re.match(filesystem.RUN_RE_ELEMENT, run.name)
             ):
@@ -92,7 +92,7 @@ class backup_utils:
                     elif not os.path.isdir(os.path.join(archive_dir, item)):
                         continue
                     if (
-                        re.match(filesystem.RUN_RE, item)
+                        re.match(filesystem.RUN_RE_ILLUMINA, item)
                         or re.match(filesystem.RUN_RE_ONT, item)
                         or re.match(filesystem.RUN_RE_ELEMENT, item)
                     ) and item not in self.runs:
@@ -121,7 +121,7 @@ class backup_utils:
                 continue
             for run_dir in os.listdir(data_dir):
                 if not (
-                    re.match(filesystem.RUN_RE, run_dir)
+                    re.match(filesystem.RUN_RE_ILLUMINA, run_dir)
                     or re.match(filesystem.RUN_RE_ONT, run_dir)
                     or re.match(filesystem.RUN_RE_ELEMENT, run_dir)
                 ):

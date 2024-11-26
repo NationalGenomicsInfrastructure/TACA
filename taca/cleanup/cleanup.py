@@ -118,7 +118,9 @@ def cleanup_miarka(
         all_undet_files = []
         for flowcell_dir in flowcell_dir_root:
             for fc in [
-                d for d in os.listdir(flowcell_dir) if re.match(filesystem.RUN_RE, d)
+                d
+                for d in os.listdir(flowcell_dir)
+                if re.match(filesystem.RUN_RE_ILLUMINA, d)
             ]:
                 fc_abs_path = os.path.join(flowcell_dir, fc)
                 with filesystem.chdir(fc_abs_path):
@@ -187,7 +189,9 @@ def cleanup_miarka(
     else:
         for flowcell_dir in flowcell_dir_root:
             for fc in [
-                d for d in os.listdir(flowcell_dir) if re.match(filesystem.RUN_RE, d)
+                d
+                for d in os.listdir(flowcell_dir)
+                if re.match(filesystem.RUN_RE_ILLUMINA, d)
             ]:
                 fc_abs_path = os.path.join(flowcell_dir, fc)
                 with filesystem.chdir(fc_abs_path):
