@@ -1,8 +1,12 @@
 # TACA Version Log
 
-## 20250122.1
+## 20250122.2
 
 Improve the way TACA identifies run dirs in the "bioinfo_deliveries --update" command (bioinfo_tab.py).
+
+## 20250122.1
+
+Ruff formatting.
 
 ## 20241216.2
 

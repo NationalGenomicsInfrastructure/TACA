@@ -398,7 +398,7 @@ def test_dump_pore_count_history(setup_test_fixture):
 
     # Nothing to add, no file
     tmp = tempfile.TemporaryDirectory()
-    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST','FLG')}"
+    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'FLG')}"
     os.makedirs(run_path)
     new_file = instrument_transfer.dump_pore_count_history(run_path, pore_counts)
     assert open(new_file).read() == ""
@@ -406,7 +406,7 @@ def test_dump_pore_count_history(setup_test_fixture):
 
     # Nothing to add, file is present
     tmp = tempfile.TemporaryDirectory()
-    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST','FLG')}"
+    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'FLG')}"
     os.makedirs(run_path)
     open(run_path + "/pore_count_history.csv", "w").write("test")
     new_file = instrument_transfer.dump_pore_count_history(run_path, pore_counts)

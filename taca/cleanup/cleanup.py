@@ -571,13 +571,13 @@ def _def_get_size_unit(s):
     gb = mb * 1000
     tb = gb * 1000
     if s > tb:
-        s = f"~{int(s/tb)}tb"
+        s = f"~{int(s / tb)}tb"
     elif s > gb:
-        s = f"~{int(s/gb)}gb"
+        s = f"~{int(s / gb)}gb"
     elif s > mb:
-        s = f"~{int(s/mb)}mb"
+        s = f"~{int(s / mb)}mb"
     elif s > kb:
-        s = f"~{int(s/kb)}kb"
+        s = f"~{int(s / kb)}kb"
     elif s > 0:
         s = f"~{int(s)}b"
     return str(s)
