@@ -1,6 +1,10 @@
 # TACA Version Log
 
-## 20241216.1
+## 20250122.1
+
+Ruff formatting.
+
+## 20241216.2
 
 Do not run ToulligQC if its output directory can be found.
 
