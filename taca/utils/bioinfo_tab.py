@@ -27,9 +27,13 @@ class Tree(defaultdict):
 def collect_runs():
     """Update command."""
     found_runs = {"illumina": [], "element": []}
+
     # Pattern explained:
     # 6-8Digits_(maybe ST-)AnythingLetterornumberNumber_Number_AorBLetterornumberordash
     illumina_rundir_re = re.compile("\d{6,8}_[ST-]*\w+\d+_\d+_[AB]?[A-Z0-9\-]+")
+    # E.g. 20250121_AV242106_B2425434199
+    element_rundir_re = re.compile("\d{8}_AV242106_[AB]\d+")
+
     for inst_brand in CONFIG["bioinfo_tab"]["data_dirs"]:
         for data_dir in CONFIG["bioinfo_tab"]["data_dirs"][inst_brand]:
             if os.path.exists(data_dir):
@@ -37,25 +41,21 @@ def collect_runs():
                 for run_dir in potential_run_dirs:
                     if os.path.isdir(run_dir):
                         if inst_brand == "illumina" and illumina_rundir_re.match(
-                            os.path.basename(os.path.abspath(run_dir))
+                            os.path.basename(run_dir)
                         ):
                             found_runs[inst_brand].append(os.path.basename(run_dir))
                             logger.info(f"Working on {run_dir}")
                             update_statusdb(run_dir, inst_brand)
-                        elif inst_brand == "element":
-                            # Skip no sync dirs, they will be checked below
-                            if run_dir == os.path.join(data_dir, "nosync"):
-                                continue
+                        elif inst_brand == "element" and element_rundir_re.match(
+                            os.path.basename(run_dir)
+                        ):
                             logger.info(f"Working on {run_dir}")
                             update_statusdb(run_dir, inst_brand)
-                        elif inst_brand == "ont":
-                            # Skip archived, no_backup, nosync and qc folders
-                            if re.match(
-                                ONT_RUN_PATTERN,
-                                os.path.basename(os.path.abspath(run_dir)),
-                            ):
-                                logger.info(f"Working on {run_dir}")
-                                update_statusdb(run_dir, inst_brand)
+                        elif inst_brand == "ont" and ONT_RUN_PATTERN.match(
+                            os.path.basename(run_dir)
+                        ):
+                            logger.info(f"Working on {run_dir}")
+                            update_statusdb(run_dir, inst_brand)
 
                 nosync_data_dir = os.path.join(data_dir, "nosync")
                 potential_nosync_run_dirs = glob.glob(
@@ -64,21 +64,26 @@ def collect_runs():
                 for run_dir in potential_nosync_run_dirs:
                     if os.path.isdir(run_dir):
                         if (
-                            inst_brand == "illumina"
-                            and illumina_rundir_re.match(
-                                os.path.basename(os.path.abspath(run_dir))
+                            (
+                                inst_brand == "illumina"
+                                and illumina_rundir_re.match(os.path.basename(run_dir))
                             )
-                        ) or (inst_brand == "element" or inst_brand == "ont"):
-                            # Skip archived dirs
-                            if run_dir == os.path.join(nosync_data_dir, "archived"):
-                                continue
+                            or (
+                                inst_brand == "element"
+                                and element_rundir_re.match(os.path.basename(run_dir))
+                            )
+                            or (
+                                inst_brand == "ont"
+                                and ONT_RUN_PATTERN.match(os.path.basename(run_dir))
+                            )
+                        ):
                             update_statusdb(run_dir, inst_brand)
 
 
 def update_statusdb(run_dir, inst_brand):
     """Gets status for a project."""
     if inst_brand == "illumina":
-        run_id = os.path.basename(os.path.abspath(run_dir))
+        run_id = os.path.basename(run_dir)
     elif inst_brand == "element":
         try:
             aviti_run = Aviti_Run(run_dir, CONFIG)
@@ -89,7 +94,6 @@ def update_statusdb(run_dir, inst_brand):
             # WARNING - Run parameters file not found for ElementRun(<run_dir>), might not be ready yet
             return
     elif inst_brand == "ont":
-        run_dir = os.path.abspath(run_dir)
         try:
             ont_run = ONT_run(run_dir)
         except AssertionError as e:
@@ -320,7 +324,7 @@ def get_ss_projects_illumina(run_dir):
     proj_tree = Tree()
     lane_pattern = re.compile("^([1-8]{1,2})$")
     sample_proj_pattern = re.compile("^((P[0-9]{3,5})_[0-9]{3,5})")
-    run_name = os.path.basename(os.path.abspath(run_dir))
+    run_name = os.path.basename(run_dir)
     run_date = run_name.split("_")[0]
     if len(run_date) == 6:
         current_year = "20" + run_date[0:2]
