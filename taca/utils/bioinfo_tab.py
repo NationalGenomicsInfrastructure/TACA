@@ -62,7 +62,7 @@ def collect_runs():
 def update_statusdb(run_dir, inst_brand):
     """Gets status for a project."""
     if inst_brand == "illumina":
-        run_id = os.path.basename(run_dir)
+        run_id = os.path.basename(os.path.abspath(run_dir))
     elif inst_brand == "element":
         try:
             aviti_run = Aviti_Run(run_dir, CONFIG)
