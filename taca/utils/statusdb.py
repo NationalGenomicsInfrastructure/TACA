@@ -225,8 +225,7 @@ def merge_dicts(d1, d2):
                 pass  # same leaf value
             else:
                 logger.debug(
-                    f"Values for key {key} in d1 and d2 differ, "
-                    "using the value of d1"
+                    f"Values for key {key} in d1 and d2 differ, using the value of d1"
                 )
         else:
             d1[key] = d2[key]
