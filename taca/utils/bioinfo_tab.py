@@ -26,7 +26,6 @@ class Tree(defaultdict):
 
 def collect_runs():
     """Update command."""
-    found_runs = {"illumina": [], "element": []}
 
     # Pattern explained:
     # 6-8Digits_(maybe ST-)AnythingLetterornumberNumber_Number_AorBLetterornumberordash
@@ -43,7 +42,6 @@ def collect_runs():
                         if inst_brand == "illumina" and illumina_rundir_re.match(
                             os.path.basename(run_dir)
                         ):
-                            found_runs[inst_brand].append(os.path.basename(run_dir))
                             logger.info(f"Working on {run_dir}")
                             update_statusdb(run_dir, inst_brand)
                         elif inst_brand == "element" and element_rundir_re.match(
