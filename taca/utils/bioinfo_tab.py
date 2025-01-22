@@ -37,29 +37,9 @@ def collect_runs():
         for data_dir in CONFIG["bioinfo_tab"]["data_dirs"][inst_brand]:
             if os.path.exists(data_dir):
                 potential_run_dirs = glob.glob(os.path.join(data_dir, "*"))
-                for run_dir in potential_run_dirs:
-                    if os.path.isdir(run_dir):
-                        if inst_brand == "illumina" and illumina_rundir_re.match(
-                            os.path.basename(run_dir)
-                        ):
-                            logger.info(f"Working on {run_dir}")
-                            update_statusdb(run_dir, inst_brand)
-                        elif inst_brand == "element" and element_rundir_re.match(
-                            os.path.basename(run_dir)
-                        ):
-                            logger.info(f"Working on {run_dir}")
-                            update_statusdb(run_dir, inst_brand)
-                        elif inst_brand == "ont" and ONT_RUN_PATTERN.match(
-                            os.path.basename(run_dir)
-                        ):
-                            logger.info(f"Working on {run_dir}")
-                            update_statusdb(run_dir, inst_brand)
+                potential_run_dirs += glob.glob(os.path.join(data_dir, "nosync", "*"))
 
-                nosync_data_dir = os.path.join(data_dir, "nosync")
-                potential_nosync_run_dirs = glob.glob(
-                    os.path.join(nosync_data_dir, "*")
-                )
-                for run_dir in potential_nosync_run_dirs:
+                for run_dir in potential_run_dirs:
                     if os.path.isdir(run_dir):
                         if (
                             (
@@ -75,6 +55,7 @@ def collect_runs():
                                 and ONT_RUN_PATTERN.match(os.path.basename(run_dir))
                             )
                         ):
+                            logger.info(f"Working on {run_dir}")
                             update_statusdb(run_dir, inst_brand)
 
 
