@@ -437,9 +437,9 @@ class Run:
 
         # Get '[SAMPLES]' section
         split_contents = manifest_contents.split("[SAMPLES]")
-        assert (
-            len(split_contents) == 2
-        ), f"Could not split sample rows out of manifest {manifest_contents}"
+        assert len(split_contents) == 2, (
+            f"Could not split sample rows out of manifest {manifest_contents}"
+        )
         sample_section = split_contents[1].strip().split("\n")
 
         # Split into header and rows
@@ -560,7 +560,7 @@ class Run:
                     "[RUNVALUES]",
                     "KeyName, Value",
                     f"manifest_file, {file_name}",
-                    f"manifest_group, {n+1}/{len(grouped_df)}",
+                    f"manifest_group, {n + 1}/{len(grouped_df)}",
                     f"built_from, {manifest_to_split}",
                 ]
             )

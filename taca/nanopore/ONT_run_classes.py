@@ -37,9 +37,9 @@ class ONT_run:
             None  # This will be defined upon instantiation of a child class
         )
 
-        assert re.match(
-            ONT_RUN_PATTERN, self.run_name
-        ), f"Run {self.run_name} doesn't look like a run dir"
+        assert re.match(ONT_RUN_PATTERN, self.run_name), (
+            f"Run {self.run_name} doesn't look like a run dir"
+        )
 
         # Parse MinKNOW sample and experiment name
         with open(self.get_file("/run_path.txt")) as stream:
@@ -143,9 +143,9 @@ class ONT_run:
             pore_count_history_file = os.path.join(
                 self.run_abspath, "pore_count_history.csv"
             )
-            assert os.path.isfile(
-                pore_count_history_file
-            ), f"Couldn't find {pore_count_history_file}"
+            assert os.path.isfile(pore_count_history_file), (
+                f"Couldn't find {pore_count_history_file}"
+            )
 
             self.db.create_ongoing_run(self, run_path_file, pore_count_history_file)
             logger.info(

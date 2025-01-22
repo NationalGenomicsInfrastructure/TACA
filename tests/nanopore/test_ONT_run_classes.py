@@ -171,7 +171,7 @@ def create_ONT_run_dir(
                     "unknown_positive",
                     "zero",
                 ]:
-                    f.write(f"{state},{i},{i*100}\n")
+                    f.write(f"{state},{i},{i * 100}\n")
 
     if sync_finished:
         open(f"{run_path}/.sync_finished", "w").close()
