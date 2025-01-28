@@ -1,10 +1,18 @@
 # TACA Version Log
 
-## 20250107.1
+## 20250128.1
 
 Replace PR labels action
 
-## 20241216.1
+## 20250122.2
+
+Improve the way TACA identifies run dirs in the "bioinfo_deliveries --update" command (bioinfo_tab.py).
+
+## 20250122.1
+
+Ruff formatting.
+
+## 20241216.2
 
 Do not run ToulligQC if its output directory can be found.
 

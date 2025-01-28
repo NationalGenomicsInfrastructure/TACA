@@ -269,7 +269,7 @@ class SymlinkAgent(TransferAgent):
             # If we are not overwriting, return False
             if not self.overwrite:
                 logger.debug(
-                    f'target "{self.dest_path}" exists and will not be ' "overwritten"
+                    f'target "{self.dest_path}" exists and will not be overwritten'
                 )
                 return False
             # If the target is a mount, let's not mess with it
