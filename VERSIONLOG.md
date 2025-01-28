@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250128.1
+
+Replace PR labels action
+
 ## 20250122.2
 
 Improve the way TACA identifies run dirs in the "bioinfo_deliveries --update" command (bioinfo_tab.py).
