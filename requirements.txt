@@ -2,9 +2,9 @@ CouchDB
 PyYAML
 click
 flowcell_parser @ git+https://github.com/SciLifeLab/flowcell_parser
-Levenshtein
 pandas
 python_crontab
 python_dateutil
+python_levenshtein
 requests
 setuptools
