@@ -582,11 +582,11 @@ class Run:
 
         # Sanity check
         if sum([len(group) for _, group in grouped_df]) < len(df_samples):
-            msg = "Some manifest rows were not included in any submanifest."
+            msg = "Some manifest sample rows were not included in any submanifest."
             logging.error(msg)
             raise AssertionError(msg)
         elif sum([len(group) for _, group in grouped_df]) > len(df_samples):
-            msg = "Some manifest rows were included in multiple submanifests."
+            msg = "Some manifest sample rows were included in multiple submanifests."
             logging.error(msg)
             raise AssertionError(msg)
 
