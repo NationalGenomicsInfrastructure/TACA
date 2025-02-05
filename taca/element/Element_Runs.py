@@ -569,7 +569,7 @@ class Run:
         # Break down into groups by non-consolable properties
         grouped_df = df_samples.groupby(
             [
-                "Lane",  # Group by lane because
+                "Lane",
                 "I1Mask",
                 "I2Mask",
                 "I1UmiMask",
