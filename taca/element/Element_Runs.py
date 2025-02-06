@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+from Levenshtein import distance
 
 from taca.utils.filesystem import chdir
 from taca.utils.statusdb import ElementRunsConnection
@@ -116,6 +117,52 @@ def get_mask(
     ), f"Length of mask '{mask}' does not match number of cycles used '{cycles_used}'."
 
     return mask
+
+
+def get_custom_mistmatch_thresholds(df: pd.DataFrame) -> tuple[int, int]:
+    """For an AVITI manifest dataframe containing the columns
+    'Lane', 'Index1', and 'Index2', determine whether the minimum allowed
+    mismatch threshold for index sequences should be reduced from 1 to 0,
+    based on the minimum distance between indexes.
+    """
+    df = df.copy()
+
+    # Defaults, according to Element documentation
+    i1MismatchThreshold = 1
+    i2MismatchThreshold = 1
+
+    # Collect distances
+    idx1_dists = []
+    idx2_dists = []
+    total_dists = []
+    # Iterate across all sample pairings per lane
+    for lane in df["Lane"].unique():
+        df_lane = df[df["Lane"] == lane]
+        df_lane.reset_index(drop=True, inplace=True)
+        for i in range(0, len(df_lane)):
+            for j in range(i + 1, len(df_lane)):
+                idx1_dist = distance(df_lane["Index1"][i], df_lane["Index1"][j])
+                idx2_dist = distance(df_lane["Index2"][i], df_lane["Index2"][j])
+
+                # Collect distances between all sample pairings on index and index-pair level
+                idx1_dists.append(idx1_dist)
+                idx2_dists.append(idx2_dist)
+                total_dists.append(idx1_dist + idx2_dist)
+
+    if min(total_dists) == 0:
+        raise AssertionError("Total index distance of 0 detected.")
+    if min(idx1_dists) <= 2:
+        logging.warning(
+            "Minimum distance between Index1 sequences is at or below 2. Reducing allowed mismatches from 1 to 0."
+        )
+        i1MismatchThreshold = 0
+    if min(idx2_dists) <= 2:
+        logging.warning(
+            "Minimum distance between Index2 sequences is at or below 2. Reducing allowed mismatches from 1 to 0."
+        )
+        i2MismatchThreshold = 0
+
+    return (i1MismatchThreshold, i2MismatchThreshold)
 
 
 class Run:
@@ -522,6 +569,7 @@ class Run:
         # Break down into groups by non-consolable properties
         grouped_df = df_samples.groupby(
             [
+                "Lane",
                 "I1Mask",
                 "I2Mask",
                 "I1UmiMask",
@@ -534,25 +582,31 @@ class Run:
 
         # Sanity check
         if sum([len(group) for _, group in grouped_df]) < len(df_samples):
-            msg = "Some samples were not included in any submanifest."
+            msg = "Some manifest sample rows were not included in any submanifest."
             logging.error(msg)
             raise AssertionError(msg)
         elif sum([len(group) for _, group in grouped_df]) > len(df_samples):
-            logging.warning("Some samples were included in multiple submanifests.")
+            msg = "Some manifest sample rows were included in multiple submanifests."
+            logging.error(msg)
+            raise AssertionError(msg)
 
         # Iterate over groups to build composite manifests
         manifest_root_name = f"{self.NGI_run_id}_demux"
         manifests = []
         n = 0
         for (
-            I1Mask,
-            I2Mask,
-            I1UmiMask,
-            I2UmiMask,
-            R1Mask,
-            R2Mask,
-            settings,
-        ), group in grouped_df:
+            (
+                Lane,  # Different lanes MAY need different settings, i.e. index mismatch thresholds
+                I1Mask,
+                I2Mask,
+                I1UmiMask,
+                I2UmiMask,
+                R1Mask,
+                R2Mask,
+                settings,
+            ),
+            group,
+        ) in grouped_df:
             file_name = f"{manifest_root_name}_{n}.csv"
 
             runValues_section = "\n".join(
@@ -585,10 +639,19 @@ class Run:
             else:
                 raise AssertionError("Both I1 and I2 appear to contain UMIs.")
 
+            # Add mismatch threshold settings
+            i1_mm_threshold, i2_mm_threshold = get_custom_mistmatch_thresholds(group)
+            settings_kvs["I1MismatchThreshold"] = str(i1_mm_threshold)
+            settings_kvs["I2MismatchThreshold"] = str(i2_mm_threshold)
+
             # Unpack settings from LIMS manifest
             if settings:
                 for kv in settings.split(" "):
                     k, v = kv.split(":")
+                    if k in settings_kvs and settings_kvs[k] != v:
+                        logging.warning(
+                            f"Overwriting TACA submanifest setting {k}={settings_kvs[k]} with LIMS setting {v}"
+                        )
                     settings_kvs[k] = v
 
             settings_section = "\n".join(
