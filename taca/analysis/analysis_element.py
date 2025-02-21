@@ -3,7 +3,6 @@
 import glob
 import logging
 import os
-from datetime import datetime
 
 from taca.element.Aviti_Runs import Aviti_Run
 from taca.utils.config import CONFIG
@@ -101,9 +100,9 @@ def run_preprocessing(given_run):
             run.sync_metadata()
             run.make_transfer_indicator()
             run.status = "transferring"
-            run.tranfer_start_time = datetime.now()
             if run.status_changed():
                 run.update_statusdb()
+                # TODO: Also update statusdb with a timestamp of when the transfer started
             run.transfer()
             return
         elif transfer_status == "ongoing":
@@ -112,7 +111,7 @@ def run_preprocessing(given_run):
                 run.update_statusdb()
             logger.info(
                 f"{run} is being transferred. Skipping."
-            )
+            )  # TODO: fix formatting, currently prints "ElementRun(20240910_AV242106_B2403418431) is being transferred"
             return
         elif transfer_status == "rsync done":
             run.remove_transfer_indicator()

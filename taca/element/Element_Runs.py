@@ -191,7 +191,6 @@ class Run:
             .get(self.sequencer_type, {})
             .get("transfer_log")
         )
-        self.tranfer_start_time = None
         self.rsync_exit_file = os.path.join(self.run_dir, ".rsync_exit_status")
 
         # Instrument generated files
@@ -352,9 +351,6 @@ class Run:
             "Element": demultiplex_stats,
             "Software": software_info,
         }
-        
-        if self.tranfer_start_time:
-            doc_obj["transfer_start_time"] = self.transfer_start_time
 
         return doc_obj
 
