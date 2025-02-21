@@ -383,7 +383,7 @@ class Run:
                 return "ongoing"
             elif found_demux_stats_file:
                 finished_count += (
-                    1  # TODO: check exit status of demux in exit status file
+                    1  # TODO: check logs for errors/warnings when we know what to look for
                 )
         if finished_count == len(sub_demux_dirs):
             return "finished"
@@ -718,13 +718,14 @@ class Run:
         with open(
             os.path.join(self.run_dir, ".bases2fastq_command"), "a"
         ) as command_file:
-            command_file.write(command)
+            command_file.write(command + "\n")
         return command
 
     def start_demux(self, run_manifest, demux_dir):
         with chdir(self.run_dir):
             cmd = self.generate_demux_command(run_manifest, demux_dir)
-            stderr_abspath = f"{self.run_dir}/bases2fastq_stderr.txt"  # TODO: individual files for each sub-demux
+            subdemux = demux_dir[-1]
+            stderr_abspath = f"{self.run_dir}/bases2fastq_stderr_{subdemux}.txt"
             try:
                 with open(stderr_abspath, "w") as stderr:
                     process = subprocess.Popen(
