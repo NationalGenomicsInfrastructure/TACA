@@ -102,16 +102,13 @@ def run_preprocessing(given_run):
             run.status = "transferring"
             if run.status_changed():
                 run.update_statusdb()
-                # TODO: Also update statusdb with a timestamp of when the transfer started
             run.transfer()
             return
         elif transfer_status == "ongoing":
             run.status = "transferring"
             if run.status_changed():
                 run.update_statusdb()
-            logger.info(
-                f"{run} is being transferred. Skipping."
-            )  # TODO: fix formatting, currently prints "ElementRun(20240910_AV242106_B2403418431) is being transferred"
+            logger.info(f"{run} is being transferred. Skipping.")
             return
         elif transfer_status == "rsync done":
             run.remove_transfer_indicator()

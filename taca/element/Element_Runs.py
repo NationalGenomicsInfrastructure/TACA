@@ -256,7 +256,12 @@ class Run:
         self.side = run_parameters.get("Side")  # SideA or SideB
         self.side_letter = self.side[
             -1
-        ]  # A or B TODO: compare side letter with manually entered letter in run name
+        ]  # A or B
+        if self.side_letter != self.run_dir.split("_")[-1][0]:
+            logger.warning(
+                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
+            )
+            raise AssertionError(f"Inconcistencies in side assignments for {self}")
         self.run_type = run_parameters.get(
             "RunType"
         )  # Sequencing, wash or prime I believe?
