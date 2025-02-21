@@ -98,7 +98,7 @@ def run_preprocessing(given_run):
             email_message = f"Unknown demultiplexing status {demultiplexing_status} of run {run}. Please investigate."
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
-        
+
         email_subject = f"Demultiplexing completed for {run}"
         email_message = f"Demultiplexing completed without errors for {run}. Starting transfer to analysis cluster"
         send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
@@ -132,9 +132,7 @@ def run_preprocessing(given_run):
             run.move_to_nosync()
             run.status = "processed"
             email_subject = f"{run} has been transferred to the analysis cluster"
-            email_message = (
-                f"{run} has been transferred to the analysis cluster."
-            )
+            email_message = f"{run} has been transferred to the analysis cluster."
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
             if run.status_changed():

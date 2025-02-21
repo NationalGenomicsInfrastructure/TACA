@@ -254,9 +254,7 @@ class Run:
             "RunID"
         )  # Unique hash that we don't really use
         self.side = run_parameters.get("Side")  # SideA or SideB
-        self.side_letter = self.side[
-            -1
-        ]  # A or B
+        self.side_letter = self.side[-1]  # A or B
         if self.side_letter != self.run_dir.split("_")[-1][0]:
             logger.warning(
                 f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
@@ -382,9 +380,7 @@ class Run:
             if not found_demux_stats_file:
                 return "ongoing"
             elif found_demux_stats_file:
-                finished_count += (
-                    1  # TODO: check logs for errors/warnings when we know what to look for
-                )
+                finished_count += 1  # TODO: check logs for errors/warnings when we know what to look for
         if finished_count == len(sub_demux_dirs):
             return "finished"
         else:
@@ -935,9 +931,7 @@ class Run:
                     )
                 )
                 for fastqfile in fastqfiles:
-                    base_name = os.path.basename(
-                        fastqfile
-                    )
+                    base_name = os.path.basename(fastqfile)
                     os.symlink(fastqfile, os.path.join(project_dest, base_name))
 
     # Read in each Project_RunStats.json to fetch PercentMismatch, PercentQ30, PercentQ40 and QualityScoreMean

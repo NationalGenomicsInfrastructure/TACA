@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250221.1
+
+Improve logging for Aviti
+
 ## 20250205.1
 
 Add feature to AVITI submanifest generation to tweak index mismatch thresholds if necessary.
