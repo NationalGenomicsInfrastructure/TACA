@@ -32,7 +32,7 @@ def delivery():
 )
 @click.argument("project")
 def stage(project, flowcells, samples):
-    """Stage a project in DELIVERY and setup DDS delivery project."""
+    """Stage a project in DELIVERY."""
     flowcells_to_stage = flowcells.split(",") if flowcells else None
     samples_to_stage = samples.split(",") if samples else None
     deliver.stage(project, flowcells=flowcells_to_stage, samples=samples_to_stage)
@@ -97,7 +97,7 @@ def upload(
     project_description=None,
     ignore_orderportal_members=False,
 ):
-    """Upload a staged project to DDS."""
+    """Set up a DDS project and upload a staged project to it."""
     load_yaml_config(statusdb_config.name)
     load_yaml_config(order_portal.name)
     deliver.upload_to_dds(
