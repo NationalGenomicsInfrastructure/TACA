@@ -288,8 +288,6 @@ class Run:
         return index_assignments
 
     def to_doc_obj(self):
-        # TODO: are we sure what we should do when the RunParameters.json file is missing?
-
         # Read in all instrument generated files
         instrument_generated_files = {}
         for file in [
@@ -363,10 +361,12 @@ class Run:
         if os.path.exists(self.final_sequencing_file):
             with open(self.final_sequencing_file) as json_file:
                 sequencing_outcome = json.load(json_file).get("outcome")
-            if sequencing_outcome != "OutcomeCompleted":
-                return False  # TODO: throw an exception if the sequencing outcome is OutcomeFailed
-            else:
+            if sequencing_outcome == "OutcomeFailed":
+                raise RuntimeError(f"The sequencing run {self} FAILED.")
+            elif sequencing_outcome == "OutcomeCompleted":
                 return True
+            else:
+                return False
         else:
             return False
 

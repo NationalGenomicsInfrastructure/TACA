@@ -36,7 +36,16 @@ def run_preprocessing(given_run):
             raise
 
         #### Sequencing status ####
-        sequencing_done = run.check_sequencing_status()
+        try:
+            sequencing_done = run.check_sequencing_status()
+        except RuntimeError as e:
+            logger.warning(f"The sequencing FAILED for {run}: {e}")
+            email_subject = f"Issues processing {run}"
+            email_message = (
+                f"The sequencing of {run} FAILED: {e}"
+            )
+            send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
+            raise
         if not sequencing_done:
             run.status = "sequencing"
             if run.status_changed():
