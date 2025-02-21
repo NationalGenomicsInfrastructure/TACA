@@ -22,6 +22,7 @@ def run_preprocessing(given_run):
 
         :param taca.element.Run run: Run to be processed and transferred
         """
+        logger.info(f"Working on {run}")
         try:
             run.parse_run_parameters()
         except FileNotFoundError:
@@ -41,13 +42,12 @@ def run_preprocessing(given_run):
         except RuntimeError as e:
             logger.warning(f"The sequencing FAILED for {run}: {e}")
             email_subject = f"Issues processing {run}"
-            email_message = (
-                f"The sequencing of {run} FAILED: {e}"
-            )
+            email_message = f"The sequencing of {run} FAILED: {e}"
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             raise
         if not sequencing_done:
             run.status = "sequencing"
+            logger.info(f"{run} is still sequencing")
             if run.status_changed():
                 run.update_statusdb()
             return
@@ -98,6 +98,10 @@ def run_preprocessing(given_run):
             email_message = f"Unknown demultiplexing status {demultiplexing_status} of run {run}. Please investigate."
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
+        
+        email_subject = f"Demultiplexing completed for {run}"
+        email_message = f"Demultiplexing completed without errors for {run}. Starting transfer to analysis cluster"
+        send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
@@ -127,6 +131,11 @@ def run_preprocessing(given_run):
                 run.update_statusdb()
             run.move_to_nosync()
             run.status = "processed"
+            email_subject = f"{run} has been transferred to the analysis cluster"
+            email_message = (
+                f"{run} has been transferred to the analysis cluster."
+            )
+            send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
             if run.status_changed():
                 run.update_statusdb()

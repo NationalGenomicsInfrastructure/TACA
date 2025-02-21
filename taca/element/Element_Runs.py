@@ -739,11 +739,12 @@ class Run:
                     f"started for run {self} on {datetime.now()}"
                     f"with p_handle {process}"
                 )
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as e:
                 logger.warning(
                     "An error occurred while starting demultiplexing for "
                     f"{self} on {datetime.now()}."
                 )
+                raise e
         return
 
     def get_transfer_status(self):
@@ -936,7 +937,7 @@ class Run:
                 for fastqfile in fastqfiles:
                     base_name = os.path.basename(
                         fastqfile
-                    )  # TODO: Make symlinks relative instead of absolute to maintain them after archiving
+                    )
                     os.symlink(fastqfile, os.path.join(project_dest, base_name))
 
     # Read in each Project_RunStats.json to fetch PercentMismatch, PercentQ30, PercentQ40 and QualityScoreMean
