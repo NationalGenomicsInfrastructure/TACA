@@ -496,7 +496,7 @@ class TestRun:
                 "run_finished": True,
                 "metadata_files": True,
                 "outcome_completed": False,
-                "expected": False,
+                "expected": RuntimeError,
             },
             {
                 "run_finished": False,
@@ -523,14 +523,21 @@ class TestRun:
             ),
             get_config(tmp),
         )
-        assert run.check_sequencing_status() is expected_outcome
+
+        if issubclass(expected_outcome, Exception):
+            with pytest.raises(expected_outcome):
+                run.check_sequencing_status()
+        elif isinstance(expected_outcome, bool):
+            assert run.check_sequencing_status() is expected_outcome
+        else:
+            assert run.check_sequencing_status() == expected_outcome
 
     @pytest.mark.parametrize(
         "p",
         [
             {"demux_dir": False, "demux_done": False, "expected": "not started"},
             {"demux_dir": True, "demux_done": False, "expected": "ongoing"},
-            {"demux_dir": True, "demux_done": True, "expected": "finished"},
+            {"demux_dir": True, "demux_done": True, "expected": RuntimeError},
         ],
         ids=["not started", "ongoing", "finished"],
     )
