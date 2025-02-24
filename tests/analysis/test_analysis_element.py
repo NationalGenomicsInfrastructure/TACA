@@ -94,7 +94,6 @@ def test_process_on_dir_w_metadata(aviti_fixture):
     assert mocks["mock_db"].return_value.upload_to_statusdb.called
 
 
-@pytest.mark.skip("Currently a failed run is treated as an ongoing run.")
 def test_process_on_failed_run(aviti_fixture):
     to_test, tmp, caplog, mocks = aviti_fixture
 
@@ -116,7 +115,8 @@ def test_process_on_failed_run(aviti_fixture):
         nosync=False,
     )
 
-    to_test.run_preprocessing(run_dir)
+    with pytest.raises(RuntimeError):
+        to_test.run_preprocessing(run_dir)
 
 
 def test_process_on_finished_run_wo_lims_manifest(aviti_fixture):
