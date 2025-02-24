@@ -537,7 +537,7 @@ class TestRun:
         [
             {"demux_dir": False, "demux_done": False, "expected": "not started"},
             {"demux_dir": True, "demux_done": False, "expected": "ongoing"},
-            {"demux_dir": True, "demux_done": True, "expected": RuntimeError},
+            {"demux_dir": True, "demux_done": True, "expected": "finished"},
         ],
         ids=["not started", "ongoing", "finished"],
     )
