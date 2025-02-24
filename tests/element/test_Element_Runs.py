@@ -524,7 +524,7 @@ class TestRun:
             get_config(tmp),
         )
 
-        if issubclass(expected_outcome, Exception):
+        if type(expected_outcome) is type and issubclass(expected_outcome, Exception):
             with pytest.raises(expected_outcome):
                 run.check_sequencing_status()
         elif isinstance(expected_outcome, bool):
