@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250225.1
+
+Improve testing CI
+
 ## 20250221.1
 
 Improve logging for Aviti
