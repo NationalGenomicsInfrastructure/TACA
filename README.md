@@ -8,7 +8,7 @@
 
 [![PyPI version](https://badge.fury.io/py/taca.svg)](http://badge.fury.io/py/taca)
 [![Documentation Status](https://readthedocs.org/projects/taca/badge/?version=latest)](https://readthedocs.org/projects/taca/?badge=latest)
-[![codecov](https://codecov.io/gh/scilifelab/taca/branch/master/graph/badge.svg)](https://codecov.io/gh/scilifelab/taca)
+[![codecov](https://codecov.io/gh/nationalgenomicsinfrastructure/taca/branch/master/graph/badge.svg)](https://codecov.io/gh/nationalgenomicsinfrastructure/taca)
 
 This package contains several tools for projects and data management in the [National Genomics Infrastructure](https://ngisweden.scilifelab.se/) in Stockholm, Sweden.
 
