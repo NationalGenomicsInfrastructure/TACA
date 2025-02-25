@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250221.1
+
+Improve logging for Aviti
+
 ## 20250218.1
 
 Correction of help messages

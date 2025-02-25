@@ -254,9 +254,12 @@ class Run:
             "RunID"
         )  # Unique hash that we don't really use
         self.side = run_parameters.get("Side")  # SideA or SideB
-        self.side_letter = self.side[
-            -1
-        ]  # A or B TODO: compare side letter with manually entered letter in run name
+        self.side_letter = self.side[-1]  # A or B
+        if self.side_letter != self.run_dir.split("_")[-1][0]:
+            logger.warning(
+                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
+            )
+            raise AssertionError(f"Inconcistencies in side assignments for {self}")
         self.run_type = run_parameters.get(
             "RunType"
         )  # Sequencing, wash or prime I believe?
@@ -283,8 +286,6 @@ class Run:
         return index_assignments
 
     def to_doc_obj(self):
-        # TODO: are we sure what we should do when the RunParameters.json file is missing?
-
         # Read in all instrument generated files
         instrument_generated_files = {}
         for file in [
@@ -358,10 +359,12 @@ class Run:
         if os.path.exists(self.final_sequencing_file):
             with open(self.final_sequencing_file) as json_file:
                 sequencing_outcome = json.load(json_file).get("outcome")
-            if sequencing_outcome != "OutcomeCompleted":
-                return False  # TODO: throw an exception if the sequencing outcome is OutcomeFailed
-            else:
+            if sequencing_outcome == "OutcomeFailed":
+                raise RuntimeError(f"The sequencing run {self} FAILED.")
+            elif sequencing_outcome == "OutcomeCompleted":
                 return True
+            else:
+                return False
         else:
             return False
 
@@ -377,9 +380,7 @@ class Run:
             if not found_demux_stats_file:
                 return "ongoing"
             elif found_demux_stats_file:
-                finished_count += (
-                    1  # TODO: check exit status of demux in exit status file
-                )
+                finished_count += 1  # TODO: check logs for errors/warnings when we know what to look for
         if finished_count == len(sub_demux_dirs):
             return "finished"
         else:
@@ -713,13 +714,14 @@ class Run:
         with open(
             os.path.join(self.run_dir, ".bases2fastq_command"), "a"
         ) as command_file:
-            command_file.write(command)
+            command_file.write(command + "\n")
         return command
 
     def start_demux(self, run_manifest, demux_dir):
         with chdir(self.run_dir):
             cmd = self.generate_demux_command(run_manifest, demux_dir)
-            stderr_abspath = f"{self.run_dir}/bases2fastq_stderr.txt"  # TODO: individual files for each sub-demux
+            subdemux = demux_dir[-1]
+            stderr_abspath = f"{self.run_dir}/bases2fastq_stderr_{subdemux}.txt"
             try:
                 with open(stderr_abspath, "w") as stderr:
                     process = subprocess.Popen(
@@ -733,11 +735,12 @@ class Run:
                     f"started for run {self} on {datetime.now()}"
                     f"with p_handle {process}"
                 )
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as e:
                 logger.warning(
                     "An error occurred while starting demultiplexing for "
                     f"{self} on {datetime.now()}."
                 )
+                raise e
         return
 
     def get_transfer_status(self):
@@ -928,9 +931,7 @@ class Run:
                     )
                 )
                 for fastqfile in fastqfiles:
-                    base_name = os.path.basename(
-                        fastqfile
-                    )  # TODO: Make symlinks relative instead of absolute to maintain them after archiving
+                    base_name = os.path.basename(fastqfile)
                     os.symlink(fastqfile, os.path.join(project_dest, base_name))
 
     # Read in each Project_RunStats.json to fetch PercentMismatch, PercentQ30, PercentQ40 and QualityScoreMean

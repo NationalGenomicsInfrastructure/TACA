@@ -496,7 +496,7 @@ class TestRun:
                 "run_finished": True,
                 "metadata_files": True,
                 "outcome_completed": False,
-                "expected": False,
+                "expected": RuntimeError,
             },
             {
                 "run_finished": False,
@@ -523,7 +523,14 @@ class TestRun:
             ),
             get_config(tmp),
         )
-        assert run.check_sequencing_status() is expected_outcome
+
+        if type(expected_outcome) is type and issubclass(expected_outcome, Exception):
+            with pytest.raises(expected_outcome):
+                run.check_sequencing_status()
+        elif isinstance(expected_outcome, bool):
+            assert run.check_sequencing_status() is expected_outcome
+        else:
+            assert run.check_sequencing_status() == expected_outcome
 
     @pytest.mark.parametrize(
         "p",

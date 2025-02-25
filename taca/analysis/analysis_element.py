@@ -22,6 +22,7 @@ def run_preprocessing(given_run):
 
         :param taca.element.Run run: Run to be processed and transferred
         """
+        logger.info(f"Working on {run}")
         try:
             run.parse_run_parameters()
         except FileNotFoundError:
@@ -36,9 +37,17 @@ def run_preprocessing(given_run):
             raise
 
         #### Sequencing status ####
-        sequencing_done = run.check_sequencing_status()
+        try:
+            sequencing_done = run.check_sequencing_status()
+        except RuntimeError as e:
+            logger.warning(f"The sequencing FAILED for {run}: {e}")
+            email_subject = f"Issues processing {run}"
+            email_message = f"The sequencing of {run} FAILED: {e}"
+            send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
+            raise
         if not sequencing_done:
             run.status = "sequencing"
+            logger.info(f"{run} is still sequencing")
             if run.status_changed():
                 run.update_statusdb()
             return
@@ -90,6 +99,10 @@ def run_preprocessing(given_run):
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
 
+        email_subject = f"Demultiplexing completed for {run}"
+        email_message = f"Demultiplexing completed without errors for {run}. Starting transfer to analysis cluster"
+        send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
+
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
         if transfer_status == "not started":
@@ -102,16 +115,13 @@ def run_preprocessing(given_run):
             run.status = "transferring"
             if run.status_changed():
                 run.update_statusdb()
-                # TODO: Also update statusdb with a timestamp of when the transfer started
             run.transfer()
             return
         elif transfer_status == "ongoing":
             run.status = "transferring"
             if run.status_changed():
                 run.update_statusdb()
-            logger.info(
-                f"{run} is being transferred. Skipping."
-            )  # TODO: fix formatting, currently prints "ElementRun(20240910_AV242106_B2403418431) is being transferred"
+            logger.info(f"{run} is being transferred. Skipping.")
             return
         elif transfer_status == "rsync done":
             run.remove_transfer_indicator()
@@ -121,6 +131,9 @@ def run_preprocessing(given_run):
                 run.update_statusdb()
             run.move_to_nosync()
             run.status = "processed"
+            email_subject = f"{run} has been transferred to the analysis cluster"
+            email_message = f"{run} has been transferred to the analysis cluster."
+            send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
             if run.status_changed():
                 run.update_statusdb()
