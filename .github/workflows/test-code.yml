@@ -22,7 +22,7 @@ jobs:
         run: pip install -e .
       - name: pytest
         # Default options are configured in pyproject.toml
-        run: pytest --cov=./taca --junitxml=junit.xml -o junit_family=legacy --cov-report=xml term-missing -vv
+        run: pytest --cov=./taca --junitxml=junit.xml -o junit_family=legacy --cov-report term-missing -vv
       - name: CodeCov
         uses: codecov/codecov-action@v4
         with:
