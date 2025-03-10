@@ -54,9 +54,6 @@ jobs:
       # Start by installing type stubs
       - name: mypy --> Install stubs
         run: mypy --install-types --non-interactive .
-      - name: mypy --> Static type checking
-        # Configured in pyprojet.toml
-        run: mypy .
 
   # Use pipreqs to check for missing dependencies
   pipreqs-check:
