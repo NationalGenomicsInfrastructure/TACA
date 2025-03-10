@@ -53,7 +53,7 @@ jobs:
           pip install mypy
       # Start by installing type stubs
       - name: mypy --> Install stubs
-        run: echo -e "y" | mypy --install-types . || exit 0
+        run: mypy --install-types --non-interactive .
       - name: mypy --> Static type checking
         # Configured in pyprojet.toml
         run: mypy .
