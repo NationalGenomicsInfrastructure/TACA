@@ -293,7 +293,8 @@ class Upload:
         ]
         if self.other_member_details:
             for member in self.other_member_details:
-                dds_command.append(f"--researcher {member}")
+                dds_command.append("--researcher")
+                dds_command.append(member)
         dds_project_id = ""
         try:
             output = ""
