@@ -4,6 +4,10 @@
 
 Have AVITI demux manifest accommodate samples with recipes of read length 0 by treating them as full length.
 
+## 20250310.1
+
+Fix command in ONT delivery
+
 ## 20250225.1
 
 Improve testing CI
