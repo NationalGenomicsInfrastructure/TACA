@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250310.1
+
+Fix command in ONT delivery
+
 ## 20250225.1
 
 Improve testing CI
