@@ -555,8 +555,27 @@ class Run:
                 cycles_used=self.cycles["I2"],
             )
         )
-        df_samples["R1Mask"] = f"R1:Y{self.cycles['R1']}"
-        df_samples["R2Mask"] = f"R2:Y{self.cycles['R2']}"
+        # For the read masks, interpret a recipe of 0-0 to simply use all cycles
+        df_samples["R1Mask"] = df_samples["Recipe"].apply(
+            lambda recipe: get_mask(
+                seq="N" * int(recipe.split("-")[0])
+                if int(recipe.split("-")[0]) > 0
+                else "N" * self.cycles["R1"],
+                keep="Ns",
+                prefix="R1:",
+                cycles_used=self.cycles["R1"],
+            )
+        )
+        df_samples["R2Mask"] = df_samples["Recipe"].apply(
+            lambda recipe: get_mask(
+                seq="N" * int(recipe.split("-")[-1])
+                if int(recipe.split("-")[-1]) > 0
+                else "N" * self.cycles["R2"],
+                keep="Ns",
+                prefix="R2:",
+                cycles_used=self.cycles["R2"],
+            )
+        )
 
         # Re-make Index2 column without any Ns
         df_samples["Index2_with_Ns"] = df_samples["Index2"]
