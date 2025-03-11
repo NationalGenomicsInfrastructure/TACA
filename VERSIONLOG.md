@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20240311.1
+
+Have AVITI demux manifest accommodate samples with recipes of read length 0 by treating them as full length.
+
 ## 20250310.1
 
 Fix command in ONT delivery
