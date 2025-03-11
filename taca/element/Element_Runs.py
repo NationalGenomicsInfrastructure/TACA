@@ -21,20 +21,34 @@ logger = logging.getLogger(__name__)
 
 def get_mask(
     seq: str,
-    keep_Ns: bool,
+    keep: str,
     prefix: str,
     cycles_used: int,
 ) -> str:
     """
     Inputs:
         seq             Sequence string to make mask from
-        keep_Ns         Whether Ns should be "Y" or "N" in the mask, vice versa for ACGT
+        keep            "bases" or "Ns", mutually exclusive options
         prefix          Prefix to add to the mask
         cycles_used     Number of cycles used in the sequencing run
 
     Example usage:
-        get_mask( "ACGTNNN", True,  "I1:",  7 ) -> 'I1:N4Y3'
-        get_mask( "ACGTNNN", False, "I2:", 10 ) -> 'I2:Y4N6'
+
+        get_mask(
+            seq = "ACGTNNN",
+            keep = "Ns",
+            prefix = "I1:",
+            cycles_used = 7
+        )
+            -> 'I1:N4Y3'
+
+        get_mask(
+            seq = "ACGTNNN",
+            keep = "bases",
+            prefix = "I2:",
+            cycles_used = 10
+        )
+            -> 'I2:Y4N6'
     """
 
     # Input assertions
@@ -46,6 +60,7 @@ def get_mask(
         "I1:",
         "I2:",
     ], f"Mask prefix {prefix} not recognized"
+    assert keep in ["bases", "Ns"], f"Keep option {keep} not recognized"
 
     # Handle no-input cases
     if seq == "":
@@ -61,7 +76,7 @@ def get_mask(
             "G": "Y",
             "T": "Y",
         }
-        if keep_Ns is False
+        if keep == "bases"
         else {
             "N": "Y",
             "A": "N",
@@ -511,7 +526,7 @@ class Run:
         df_samples["I1Mask"] = df_samples["Index1"].apply(
             lambda seq: get_mask(
                 seq=seq,
-                keep_Ns=False,
+                keep="bases",
                 prefix="I1:",
                 cycles_used=self.cycles["I1"],
             )
@@ -519,7 +534,7 @@ class Run:
         df_samples["I2Mask"] = df_samples["Index2"].apply(
             lambda seq: get_mask(
                 seq=seq,
-                keep_Ns=False,
+                keep="bases",
                 prefix="I2:",
                 cycles_used=self.cycles["I2"],
             )
@@ -527,7 +542,7 @@ class Run:
         df_samples["I1UmiMask"] = df_samples["Index1"].apply(
             lambda seq: get_mask(
                 seq=seq,
-                keep_Ns=True,
+                keep="Ns",
                 prefix="I1:",
                 cycles_used=self.cycles["I1"],
             )
@@ -535,7 +550,7 @@ class Run:
         df_samples["I2UmiMask"] = df_samples["Index2"].apply(
             lambda seq: get_mask(
                 seq=seq,
-                keep_Ns=True,
+                keep="Ns",
                 prefix="I2:",
                 cycles_used=self.cycles["I2"],
             )
