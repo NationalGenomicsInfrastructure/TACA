@@ -22,7 +22,7 @@ setup(
     version=__version__,
     description="Tool for the Automation of Cleanup and Analyses",
     long_description="This package contains a set of functionalities that are "
-    "useful in the day-to-day tasks of bioinformatitians in "
+    "useful in the day-to-day tasks of bioinformaticians in "
     "National Genomics Infrastructure in Stockholm, Sweden.",
     keywords="bioinformatics",
     author="NGI-stockholm",

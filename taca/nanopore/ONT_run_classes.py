@@ -289,7 +289,7 @@ class ONT_run:
             ]:
                 seq_metadata_trimmed["acquisition_output"].append(section)
 
-        # -- Read length subseqtion
+        # -- Read length subsection
         seq_metadata_trimmed["read_length_histogram"] = seq_metadata[
             "read_length_histogram"
         ]
@@ -374,33 +374,27 @@ class ONT_run:
             "fast5_pass",
             "fast5",
         ]
-        raw_data_dir = None
+        raw_data_path = None
         for raw_data_dir_option in raw_data_dir_options:
             if os.path.exists(f"{self.run_abspath}/{raw_data_dir_option}"):
-                raw_data_dir = raw_data_dir_option
+                raw_data_path = f"{self.run_abspath}/{raw_data_dir_option}"
+                raw_data_format = "pod5" if "pod5" in raw_data_dir_option else "fast5"
                 break
-        if raw_data_dir is None:
+        if raw_data_path is None:
             raise AssertionError(f"No seq data found in {self.run_abspath}")
-        raw_data_format = "pod5" if "pod5" in raw_data_dir else "fast5"
 
         # Load samplesheet, if any
         ss_glob = glob.glob(f"{self.run_abspath}/sample_sheet*.csv")
         if len(ss_glob) == 0:
             samplesheet = None
         elif len(ss_glob) > 1:
-            # If multiple samplesheet, use latest one
+            # If multiple samplesheets, use latest one
             samplesheet = ss_glob.sort()[-1]
+            logging.info(
+                f"{self.run_name}: Multiple samplesheets found, using latest '{samplesheet}'"
+            )
         else:
             samplesheet = ss_glob[0]
-
-        # Run has barcode subdirs
-        barcode_dirs_glob = glob.glob(f"{self.run_abspath}/{raw_data_dir}/barcode*")
-        if len(barcode_dirs_glob) > 0:
-            barcode_dirs = True
-            raw_data_path = barcode_dirs_glob[0]
-        else:
-            barcode_dirs = False
-            raw_data_path = f"{self.run_abspath}/{raw_data_dir}"
 
         # Determine barcodes
         if samplesheet:
@@ -410,7 +404,7 @@ class ONT_run:
                 ss_barcodes.sort()
                 barcode_nums = [int(bc[-2:]) for bc in ss_barcodes]
                 # If barcodes are numbered sequentially, write arg as range
-                if barcode_nums == list(range(1, len(barcode_nums) + 1)):
+                if barcode_nums == list(range(barcode_nums[0], barcode_nums[-1] + 1)):
                     barcodes_arg = f"{ss_barcodes[0]}:{ss_barcodes[-1]}"
                 else:
                     barcodes_arg = ":".join(ss_barcodes)
@@ -423,11 +417,10 @@ class ONT_run:
             "--output-directory": self.run_abspath,
             "--report-name": report_dir_name,
         }
-        if barcode_dirs:
+        if samplesheet and ss_barcodes:
             command_args["--barcoding"] = ""
-            if samplesheet and ss_barcodes:
-                command_args["--samplesheet"] = samplesheet
-                command_args["--barcodes"] = barcodes_arg
+            command_args["--samplesheet"] = samplesheet
+            command_args["--barcodes"] = barcodes_arg
 
         # Build command list
         command_list = [self.toulligqc_executable]
