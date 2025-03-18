@@ -1,0 +1,23 @@
+name: Check version has been updated
+on: [pull_request]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Check for version changes
+        id: version_check
+        run: |
+          version_file='taca/__init__.py'
+          FILE_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD | grep "${version_file}" || true)
+          if [ -n "$FILE_CHANGED" ]; then
+            echo "${version_file} has been changed."
+          else
+            echo "${version_file} has NOT been changed."
+            exit 1 # Fail the workflow if no changes
+          fi
