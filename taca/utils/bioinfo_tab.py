@@ -89,11 +89,11 @@ def update_statusdb(run_dir, inst_brand):
 
     if inst_brand == "illumina":
         # Fetch individual fields
-        project_info = get_ss_projects_illumina(run_dir)
+        project_info, inst_run_on = get_ss_projects_illumina(run_dir)
     elif inst_brand == "element":
-        project_info = get_ss_projects_element(aviti_run)
+        project_info, inst_run_on = get_ss_projects_element(aviti_run)
     elif inst_brand == "ont":
-        project_info = get_ss_projects_ont(ont_run, couch_connection)
+        project_info, inst_run_on = get_ss_projects_ont(ont_run, couch_connection)
     # Construction and sending of individual records, if samplesheet is incorrectly formatted the loop is skipped
     if project_info:
         for flowcell in project_info:
@@ -117,6 +117,7 @@ def update_statusdb(run_dir, inst_brand):
                             "sample": sample,
                             "status": sample_status,
                             "instrument_type": inst_brand,
+                            "instrument": inst_run_on,
                             "values": {
                                 valueskey: {
                                     "user": "taca",
@@ -276,7 +277,13 @@ def get_ss_projects_ont(ont_run, couch_connection):
         logger.info(
             f"There was no data in StatusDB for the ONT run, CHECK {flowcell_id}"
         )
-    return proj_tree
+    instrument = None
+    if ont_run.instrument:
+        if "minion" in ont_run.instrument:
+            instrument = "MinION"
+        elif "promethION" in ont_run.instrument:
+            instrument = "PromethION"
+    return proj_tree, instrument
 
 
 def get_ss_projects_element(aviti_run):
@@ -295,7 +302,8 @@ def get_ss_projects_element(aviti_run):
         logger.info(
             f"There was something wrong with the index assignment file, CHECK {aviti_run.NGI_run_id}"
         )
-    return proj_tree
+    instrument = aviti_run.sequencer_type if aviti_run.sequencer_type else None
+    return proj_tree, instrument
 
 
 def get_ss_projects_illumina(run_dir):
@@ -344,6 +352,7 @@ def get_ss_projects_illumina(run_dir):
             )
             runtype = rp.data["RunParameters"].get("ApplicationName", "")
 
+    instrument = None
     # Miseq case
     if "MiSeq" in runtype:
         if os.path.exists(
@@ -360,32 +369,38 @@ def get_ss_projects_illumina(run_dir):
         lanes = str(1)
         # Pattern is a bit more rigid since we're no longer also checking for lanes
         sample_proj_pattern = re.compile("^((P[0-9]{3,5})_[0-9]{3,5})$")
+        instrument = "MiSeq"
     # HiSeq X case
     elif "HiSeq X" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["xten_samplesheets"], current_year, f"{FCID}.csv"
         )
+        instrument = "HiSeq X"
     # HiSeq 2500 case
     elif "HiSeq" in runtype or "TruSeq" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["hiseq_samplesheets"], current_year, f"{FCID}.csv"
         )
+        instrument = "HiSeq"
     elif "NovaSeqXPlus" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["novaseqxplus_samplesheets"],
             current_year,
             f"{FCID}.csv",
         )
+        instrument = "NovaSeqXPlus"
     # NovaSeq 6000 case
     elif "NovaSeq" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["novaseq_samplesheets"], current_year, f"{FCID}.csv"
         )
+        instrument = "NovaSeq"
     # NextSeq Case
     elif "NextSeq" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["nextseq_samplesheets"], current_year, f"{FCID}.csv"
         )
+        instrument = "NextSeq"
     else:
         logger.warn(f"Cannot locate the samplesheet for run {run_dir}")
         return []
@@ -421,7 +436,7 @@ def get_ss_projects_illumina(run_dir):
 
     if list(proj_tree.keys()) == []:
         logger.info(f"INCORRECTLY FORMATTED SAMPLESHEET, CHECK {run_name}")
-    return proj_tree
+    return proj_tree, instrument
 
 
 def parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=False):
