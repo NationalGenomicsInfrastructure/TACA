@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250320.1
+
+Add instrument run on to bioinfodb to display on genstat
+
 ## 20240318.1
 
 Bugfix for ONT ToulligQC, regarding detecting barcoded runs.
