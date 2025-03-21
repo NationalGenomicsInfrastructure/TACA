@@ -337,7 +337,7 @@ def get_ss_projects_illumina(run_dir):
     if "Setup" in rp.data["RunParameters"]:
         runtype = rp.data["RunParameters"]["Setup"].get("Flowcell", "")
         if not runtype:
-            logger.warn(
+            logger.ing(
                 "Parsing runParameters to fetch instrument type, "
                 "not found Flowcell information in it. Using ApplicationName"
             )
@@ -347,7 +347,7 @@ def get_ss_projects_illumina(run_dir):
     else:
         runtype = rp.data["RunParameters"].get("Application")
         if not runtype:
-            logger.warn(
+            logger.warning(
                 "Couldn't find 'Application', could be NextSeq. Trying 'ApplicationName'"
             )
             runtype = rp.data["RunParameters"].get("ApplicationName", "")
@@ -364,24 +364,12 @@ def get_ss_projects_illumina(run_dir):
         elif os.path.exists(os.path.join(run_dir, "SampleSheet.csv")):
             FCID_samplesheet_origin = os.path.join(run_dir, "SampleSheet.csv")
         else:
-            logger.warn(f"No samplesheet found for {run_dir}")
+            logger.warning(f"No samplesheet found for {run_dir}")
         miseq = True
         lanes = str(1)
         # Pattern is a bit more rigid since we're no longer also checking for lanes
         sample_proj_pattern = re.compile("^((P[0-9]{3,5})_[0-9]{3,5})$")
         instrument = "MiSeq"
-    # HiSeq X case
-    elif "HiSeq X" in runtype:
-        FCID_samplesheet_origin = os.path.join(
-            CONFIG["bioinfo_tab"]["xten_samplesheets"], current_year, f"{FCID}.csv"
-        )
-        instrument = "HiSeq X"
-    # HiSeq 2500 case
-    elif "HiSeq" in runtype or "TruSeq" in runtype:
-        FCID_samplesheet_origin = os.path.join(
-            CONFIG["bioinfo_tab"]["hiseq_samplesheets"], current_year, f"{FCID}.csv"
-        )
-        instrument = "HiSeq"
     elif "NovaSeqXPlus" in runtype:
         FCID_samplesheet_origin = os.path.join(
             CONFIG["bioinfo_tab"]["novaseqxplus_samplesheets"],
@@ -389,12 +377,6 @@ def get_ss_projects_illumina(run_dir):
             f"{FCID}.csv",
         )
         instrument = "NovaSeqXPlus"
-    # NovaSeq 6000 case
-    elif "NovaSeq" in runtype:
-        FCID_samplesheet_origin = os.path.join(
-            CONFIG["bioinfo_tab"]["novaseq_samplesheets"], current_year, f"{FCID}.csv"
-        )
-        instrument = "NovaSeq"
     # NextSeq Case
     elif "NextSeq" in runtype:
         FCID_samplesheet_origin = os.path.join(
@@ -402,7 +384,7 @@ def get_ss_projects_illumina(run_dir):
         )
         instrument = "NextSeq"
     else:
-        logger.warn(f"Cannot locate the samplesheet for run {run_dir}")
+        logger.warning(f"Cannot locate the samplesheet for run {run_dir}")
         return []
 
     data = parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=miseq)
@@ -448,7 +430,7 @@ def parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=False):
         ss_reader = SampleSheetParser(FCID_samplesheet_origin)
         data = ss_reader.data
     except:
-        logger.warn(
+        logger.warning(
             f"Cannot initialize SampleSheetParser for {run_dir}. Most likely due to poor comma separation"
         )
         return []
@@ -458,7 +440,7 @@ def parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=False):
             "Production" in ss_reader.header["Description"]
             or "Application" in ss_reader.header["Description"]
         ):
-            logger.warn(
+            logger.warning(
                 f"Run {run_dir} not labelled as production or application. Disregarding it."
             )
             # Skip this run
