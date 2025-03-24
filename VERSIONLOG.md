@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250324.1
+
+Typo fix
+
 ## 20250320.1
 
 Add instrument run on to bioinfodb to display on genstat
