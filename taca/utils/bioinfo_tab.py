@@ -337,7 +337,7 @@ def get_ss_projects_illumina(run_dir):
     if "Setup" in rp.data["RunParameters"]:
         runtype = rp.data["RunParameters"]["Setup"].get("Flowcell", "")
         if not runtype:
-            logger.ing(
+            logger.warning(
                 "Parsing runParameters to fetch instrument type, "
                 "not found Flowcell information in it. Using ApplicationName"
             )
