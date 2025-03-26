@@ -1,5 +1,25 @@
 # TACA Version Log
 
+## 20250324.1
+
+Typo fix
+
+## 20250320.1
+
+Add instrument run on to bioinfodb to display on genstat
+
+## 20240318.1
+
+Bugfix for ONT ToulligQC, regarding detecting barcoded runs.
+
+## 20240311.1
+
+Have AVITI demux manifest accommodate samples with recipes of read length 0 by treating them as full length.
+
+## 20250310.1
+
+Fix command in ONT delivery
+
 ## 20250225.1
 
 Improve testing CI

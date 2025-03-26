@@ -34,7 +34,6 @@ exclude = "build"
 # Omit deprecation warnings from 3rd party packages
 filterwarnings = [
     'ignore::DeprecationWarning:couchdb.*',
-    'ignore::DeprecationWarning:pkg_resources.*',
 ]
 # Default addopts
 addopts = "--ignore tests_old/"

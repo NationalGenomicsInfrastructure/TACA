@@ -1,8 +1,8 @@
 import logging
 import os
+from importlib.metadata import entry_points
 
 import click
-from pkg_resources import iter_entry_points
 
 import taca.log
 from taca import __version__
@@ -35,5 +35,5 @@ def cli(ctx, config_file):
 
 
 # Add subcommands dynamically to the CLI
-for entry_point in iter_entry_points("taca.subcommands"):
+for entry_point in entry_points(group="taca.subcommands"):
     cli.add_command(entry_point.load())
