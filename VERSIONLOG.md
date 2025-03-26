@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250326.1
+
+Make it possible to "hide" old aviti runs from TACA in transfer log
+
 ## 20250324.1
 
 Typo fix
