@@ -1,3 +1,3 @@
 """Main TACA module"""
 
-__version__ = "1.5.6"
+__version__ = "1.5.7"
