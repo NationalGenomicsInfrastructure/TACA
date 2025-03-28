@@ -785,7 +785,7 @@ class Run:
     def in_transfer_log(self):
         with open(self.transfer_file) as transfer_file:
             for row in transfer_file.readlines():
-                if self.NGI_run_id in row:
+                if row.startswith(self.NGI_run_id):
                     return True
         return False
 
