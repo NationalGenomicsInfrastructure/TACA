@@ -125,7 +125,7 @@ def cleanup_miarka(
                 fc_abs_path = os.path.join(flowcell_dir, fc)
                 with filesystem.chdir(fc_abs_path):
                     if not os.path.exists(flowcell_project_source):
-                        logger.warn(
+                        logger.warning(
                             f'Flowcell {fc} does not contain a "{flowcell_project_source}" directory'
                         )
                         continue
@@ -196,7 +196,7 @@ def cleanup_miarka(
                 fc_abs_path = os.path.join(flowcell_dir, fc)
                 with filesystem.chdir(fc_abs_path):
                     if not os.path.exists(flowcell_project_source):
-                        logger.warn(
+                        logger.warning(
                             f'Flowcell {fc} do not contain a "{flowcell_project_source}" direcotry'
                         )
                         continue
@@ -373,7 +373,7 @@ def cleanup_miarka(
                     if _remove_files(files):
                         removed_qc.append(qc)
                     else:
-                        logger.warn(
+                        logger.warning(
                             f'Could not remove some files in qc directory "{qc}"'
                         )
             map(analysis_info["analysis_files"].pop, removed_qc)
@@ -395,7 +395,7 @@ def get_closed_proj_info(prj, pdoc, tdate=None):
     if not tdate:
         tdate = datetime.today()
     if not pdoc:
-        logger.warn(
+        logger.warning(
             f"Seems like project {prj} does not have a proper statusdb document, skipping it"
         )
     elif "close_date" in pdoc:
@@ -412,7 +412,7 @@ def get_closed_proj_info(prj, pdoc, tdate=None):
                 ),
             }
         except:
-            logger.warn(
+            logger.warning(
                 "Problem calculating closed days for project {} with close date {}. Skipping it".format(
                     pdoc.get("project_name"), closed_date
                 )
@@ -590,7 +590,7 @@ def _remove_files(files):
         try:
             os.remove(fl)
         except Exception as e:
-            logger.warn(f'Could not remove file {fl} due to "{e.message}"')
+            logger.warning(f'Could not remove file {fl} due to "{e.message}"')
             status = False
     return status
 
@@ -600,6 +600,6 @@ def _touch_cleaned(path):
     try:
         open(os.path.join(path, "cleaned"), "w").close()
     except Exception as e:
-        logger.warn(
+        logger.warning(
             f'Could not create "cleaned" file in path {path} due to "{e.message}"'
         )
