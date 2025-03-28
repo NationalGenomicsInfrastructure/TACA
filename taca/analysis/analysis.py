@@ -438,7 +438,9 @@ def run_preprocessing(run, software):
             if "shared_filesystem_path" in CONFIG["analysis"]:
                 try:
                     shared_filesystem_dest = os.path.join(
-                        CONFIG["analysis"]["shared_filesystem_path"][run.sequencer_type.lower()],
+                        CONFIG["analysis"]["shared_filesystem_path"][
+                            run.sequencer_type.lower()
+                        ],
                         run.id,
                     )
                     logger.info(
@@ -458,13 +460,15 @@ def run_preprocessing(run, software):
                         "laneBarcode.html",
                     )
                     copyfile(
-                        demulti_stat_src, os.path.join(shared_filesystem_dest, "laneBarcode.html")
+                        demulti_stat_src,
+                        os.path.join(shared_filesystem_dest, "laneBarcode.html"),
                     )
                     # Copy RunInfo.xml
                     run_info_xml_src = os.path.join(run.run_dir, "RunInfo.xml")
                     if os.path.isfile(run_info_xml_src):
                         copyfile(
-                            run_info_xml_src, os.path.join(shared_filesystem_dest, "RunInfo.xml")
+                            run_info_xml_src,
+                            os.path.join(shared_filesystem_dest, "RunInfo.xml"),
                         )
                     # Copy RunParameters.xml
                     run_parameters_xml_src = os.path.join(
