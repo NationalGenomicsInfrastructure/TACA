@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250327.1
+
+Delay email warning about missing sample sheet for Illumina
+
 ## 20250326.1
 
 Make it possible to "hide" old aviti runs from TACA in transfer log

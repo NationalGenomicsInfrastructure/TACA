@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from shutil import copyfile, copytree
 
 from flowcell_parser.classes import RunParametersParser
@@ -41,7 +42,7 @@ def get_runObj(
     try:
         run_parameters = RunParametersParser(run_parameters_path)
     except OSError:
-        logger.warn(
+        logger.warning(
             f"Problems parsing the runParameters.xml file at {run_parameters_path}. "
             f"This is quite unexpected. please archive the run {run} manually"
         )
@@ -61,7 +62,7 @@ def get_runObj(
                 runtype = run_parameters.data["RunParameters"]["Setup"]["Flowcell"]
             except KeyError:
                 # Use this as second resource but print a warning in the logs
-                logger.warn(
+                logger.warning(
                     "Parsing runParameters to fecth instrument type, "
                     "not found Flowcell information in it. Using ApplicationName"
                 )
@@ -81,7 +82,7 @@ def get_runObj(
         elif "NovaSeq" in runtype:
             return NovaSeq_Run(run, software, CONFIG["analysis"]["NovaSeq"])
         else:
-            logger.warn(
+            logger.warning(
                 f"Unrecognized run type {runtype}, cannot archive the run {run}. "
                 "Someone as likely bought a new sequencer without telling "
                 "it to the bioinfo team"
@@ -358,7 +359,7 @@ def run_preprocessing(run, software):
         elif run.get_run_status() == "TO_START":
             if run.get_run_type() == "NON-NGI-RUN":
                 # For now MiSeq specific case. Process only NGI-run, skip all the others (PhD student runs)
-                logger.warn(
+                logger.warning(
                     f"Run {run.id} marked as {run.get_run_type()}, "
                     "TACA will skip this and move the run to "
                     "no-sync directory"
@@ -483,7 +484,7 @@ def run_preprocessing(run, software):
                             dirs_exist_ok=True,
                         )
                 except:
-                    logger.warn(
+                    logger.warning(
                         f"Could not copy demultiplex stats, InterOp metadata or XML files for run {run.id}"
                     )
 
@@ -527,9 +528,23 @@ def run_preprocessing(run, software):
                     logger.warning(
                         f"There was an error setting up a run object for {_run}"
                     )
-                    if mail_recipients:
+                    warning_email_time_limit = CONFIG.get("analysis").get(
+                        "warning_email_time_limit"
+                    )
+                    run_start_indicator = os.path.join(_run, "RunParameters.xml")
+                    seconds_since_start = time.time() - os.path.getctime(
+                        run_start_indicator
+                    )
+                    if (
+                        mail_recipients
+                        and seconds_since_start
+                        > warning_email_time_limit * 60 * 60  # hours -> sec
+                    ):
                         subject = f"Error setting up a run object for {_run}"
-                        message = f"""There was an error setting up a run object for {_run}. It is possible that the sample sheet is missing."""
+                        message = (
+                            f"There was an error setting up a run object for {_run}. "
+                            "It is possible that the sample sheet is missing."
+                        )
                         misc.send_mail(subject, message, mail_recipients)
                     pass
                 else:
@@ -541,6 +556,9 @@ def run_preprocessing(run, software):
                         logger.warning(f"There was an error processing the run {_run}")
                         if mail_recipients:
                             subject = f"Error processing {_run}"
-                            message = f"""There was an error processing {_run}. Please check the TACA log file on preproc for more information."""
+                            message = (
+                                f"There was an error processing {_run}. "
+                                "Please check the TACA log file on preproc for more information."
+                            )
                             misc.send_mail(subject, message, mail_recipients)
                         pass
