@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250328.1
+
+Cleanup of cleanup functions
+
 ## 20250327.1
 
 Delay email warning about missing sample sheet for Illumina

@@ -349,7 +349,7 @@ analysis:
     # status_dir indicates the directory where TACA will store the CSV file used
     # to keep track of which flowcells have already been processed and transferred
     status_dir: {tmp.name}/log/
-    mfs_path:
+    shared_filesystem_path:
         miseq: {tmp.name}/ngi-nas-ns/miseq_data
         novaseq: {tmp.name}/ngi-nas-ns/NovaSeq_data
         novaseqxplus: {tmp.name}/ngi-nas-ns/NovaSeqXPlus_data
