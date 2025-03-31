@@ -3,7 +3,6 @@
 import click
 
 from taca.cleanup import cleanup as cln
-from taca.utils import misc
 
 
 @click.group()
@@ -20,26 +19,6 @@ def cleanup(ctx, status_db_config):
 
 
 # cleanup subcommands
-@cleanup.command()
-@click.option(
-    "-d",
-    "--days",
-    type=click.IntRange(min=1),
-    help='Days to consider as thershold, should not be combined with option "--hours"',
-)
-@click.option(
-    "-h",
-    "--hours",
-    type=click.IntRange(min=1),
-    help='Hours to consider as thershold, should not be combined with option "--days"',
-)
-@click.pass_context
-def preproc(ctx, days, hours):
-    """Do appropriate cleanup on preproc."""
-    seconds = misc.to_seconds(days, hours)
-    cln.cleanup_processing(seconds)
-
-
 @cleanup.command()
 @click.option(
     "--days_fastq",

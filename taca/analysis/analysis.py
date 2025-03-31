@@ -435,17 +435,19 @@ def run_preprocessing(run, software):
                 run.send_mail(sbt, msg, rcp=CONFIG["mail"]["recipients"])
 
             # Copy demultiplex stats file, InterOp meta data and run xml files to shared file system for LIMS purpose
-            if "mfs_path" in CONFIG["analysis"]:
+            if "shared_filesystem_path" in CONFIG["analysis"]:
                 try:
-                    mfs_dest = os.path.join(
-                        CONFIG["analysis"]["mfs_path"][run.sequencer_type.lower()],
+                    shared_filesystem_dest = os.path.join(
+                        CONFIG["analysis"]["shared_filesystem_path"][
+                            run.sequencer_type.lower()
+                        ],
                         run.id,
                     )
                     logger.info(
-                        f"Copying demultiplex stats, InterOp metadata and XML files for run {run.id} to {mfs_dest}"
+                        f"Copying demultiplex stats, InterOp metadata and XML files for run {run.id} to {shared_filesystem_dest}"
                     )
-                    if not os.path.exists(mfs_dest):
-                        os.mkdir(mfs_dest)
+                    if not os.path.exists(shared_filesystem_dest):
+                        os.mkdir(shared_filesystem_dest)
                     demulti_stat_src = os.path.join(
                         run.run_dir,
                         run.demux_dir,
@@ -458,13 +460,15 @@ def run_preprocessing(run, software):
                         "laneBarcode.html",
                     )
                     copyfile(
-                        demulti_stat_src, os.path.join(mfs_dest, "laneBarcode.html")
+                        demulti_stat_src,
+                        os.path.join(shared_filesystem_dest, "laneBarcode.html"),
                     )
                     # Copy RunInfo.xml
                     run_info_xml_src = os.path.join(run.run_dir, "RunInfo.xml")
                     if os.path.isfile(run_info_xml_src):
                         copyfile(
-                            run_info_xml_src, os.path.join(mfs_dest, "RunInfo.xml")
+                            run_info_xml_src,
+                            os.path.join(shared_filesystem_dest, "RunInfo.xml"),
                         )
                     # Copy RunParameters.xml
                     run_parameters_xml_src = os.path.join(
@@ -473,14 +477,14 @@ def run_preprocessing(run, software):
                     if os.path.isfile(run_info_xml_src):
                         copyfile(
                             run_parameters_xml_src,
-                            os.path.join(mfs_dest, "RunParameters.xml"),
+                            os.path.join(shared_filesystem_dest, "RunParameters.xml"),
                         )
                     # Copy InterOp
                     interop_src = os.path.join(run.run_dir, "InterOp")
                     if os.path.exists(interop_src):
                         copytree(
                             interop_src,
-                            os.path.join(mfs_dest, "InterOp"),
+                            os.path.join(shared_filesystem_dest, "InterOp"),
                             dirs_exist_ok=True,
                         )
                 except:
