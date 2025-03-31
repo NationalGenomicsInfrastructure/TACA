@@ -164,6 +164,8 @@ def get_custom_mistmatch_thresholds(df: pd.DataFrame) -> tuple[int, int]:
                 idx2_dists.append(idx2_dist)
                 total_dists.append(idx1_dist + idx2_dist)
 
+    if len(total_dists) == 0:
+        return (i1MismatchThreshold, i2MismatchThreshold)
     if min(total_dists) == 0:
         raise AssertionError("Total index distance of 0 detected.")
     if min(idx1_dists) <= 2:
