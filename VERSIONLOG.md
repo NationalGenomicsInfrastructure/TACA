@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250331.1
+
+Handle demux for Aviti runs with single samples
+
 ## 20250328.1
 
 Cleanup of cleanup functions
