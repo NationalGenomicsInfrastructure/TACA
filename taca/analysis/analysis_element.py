@@ -105,13 +105,11 @@ def run_preprocessing(given_run):
             return
 
         email_subject = f"Demultiplexing completed for {run}"
-        email_message = f"""The run {run} has been demultiplexed without any error or warning.
-
-                    The Run will be transferred to the analysis cluster for further analysis.
-
-                    The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}
-                    
-                    """
+        email_message = (
+            f"{run} has been demultiplexed without any errors or warnings.\n"
+            "The run will be transferred to the analysis cluster for further analysis.\n"
+            f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+        )
         send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
         #### Transfer status ####
@@ -143,11 +141,10 @@ def run_preprocessing(given_run):
             run.move_to_nosync()
             run.status = "processed"
             email_subject = f"{run} has been transferred to the analysis cluster"
-            email_message = f"""Rsync of data for run {run} to the analysis cluster has finished!
-            
-            The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}
-            
-            """
+            email_message = (
+                f"Rsync of data for run {run} to the analysis cluster has finished!\n"
+                f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+            )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
             if run.status_changed():
