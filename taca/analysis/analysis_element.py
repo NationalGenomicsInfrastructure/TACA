@@ -27,7 +27,8 @@ def run_preprocessing(given_run):
             run.parse_run_parameters()
         except FileNotFoundError:
             logger.warning(
-                f"Cannot reliably set NGI_run_id for {run} due to missing RunParameters.json. Aborting run processing"
+                f"Cannot reliably set NGI_run_id for {run} due to missing "
+                "RunParameters.json. Aborting run processing"
             )
             email_subject = f"Issues processing {run}"
             email_message = (
@@ -92,15 +93,23 @@ def run_preprocessing(given_run):
 
         elif demultiplexing_status != "finished":
             logger.warning(
-                f"Unknown demultiplexing status {demultiplexing_status} of run {run}. Please investigate."
+                f"Unknown demultiplexing status {demultiplexing_status} of run {run}. "
+                "Please investigate."
             )
             email_subject = f"Issues processing {run}"
-            email_message = f"Unknown demultiplexing status {demultiplexing_status} of run {run}. Please investigate."
+            email_message = (
+                f"Unknown demultiplexing status {demultiplexing_status} of "
+                f"run {run}. Please investigate."
+            )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
 
         email_subject = f"Demultiplexing completed for {run}"
-        email_message = f"Demultiplexing completed without errors for {run}. Starting transfer to analysis cluster"
+        email_message = (
+            f"{run} has been demultiplexed without any errors or warnings.\n"
+            "The run will be transferred to the analysis cluster for further analysis.\n"
+            f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+        )
         send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
         #### Transfer status ####
@@ -132,7 +141,10 @@ def run_preprocessing(given_run):
             run.move_to_nosync()
             run.status = "processed"
             email_subject = f"{run} has been transferred to the analysis cluster"
-            email_message = f"{run} has been transferred to the analysis cluster."
+            email_message = (
+                f"Rsync of data for run {run} to the analysis cluster has finished!\n"
+                f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+            )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
             if run.status_changed():
