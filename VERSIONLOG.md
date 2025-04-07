@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250407.1
+
+Adhere to function return format for error cases
+
 ## 20250404.1
 
 Add URL to Element FCs in email notifications
