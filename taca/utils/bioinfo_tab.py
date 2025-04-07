@@ -332,7 +332,7 @@ def get_ss_projects_illumina(run_dir):
         logger.error(
             f"Cannot find RunParameters.xml or runParameters.xml in the run folder for run {run_dir}"
         )
-        return []
+        return [], None
     rp = RunParametersParser(os.path.join(run_dir, run_parameters_file))
     if "Setup" in rp.data["RunParameters"]:
         runtype = rp.data["RunParameters"]["Setup"].get("Flowcell", "")
@@ -385,13 +385,13 @@ def get_ss_projects_illumina(run_dir):
         instrument = "NextSeq"
     else:
         logger.warning(f"Cannot locate the samplesheet for run {run_dir}")
-        return []
+        return [], instrument
 
     data = parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=miseq)
 
     # If samplesheet is empty, don't bother going through it
     if data == []:
-        return data
+        return data, instrument
 
     proj_n_sample = False
     lane = False
