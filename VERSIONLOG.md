@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250404.1
+
+Add URL to Element FCs in email notifications
+
 ## 20250331.1
 
 Handle demux for Aviti runs with single samples
