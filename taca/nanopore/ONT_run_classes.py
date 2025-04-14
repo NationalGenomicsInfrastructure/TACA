@@ -152,7 +152,7 @@ class ONT_run:
                 f"{self.run_name}: Successfully created database entry for ongoing run."
             )
         else:
-            logger.info(f"{self.run_name}: Database entry already exists, skipping.")
+            logger.info(f"{self.run_name}: Database entry already exists.")
 
     def update_db_entry(self, force_update=False):
         """Check run vs statusdb. Create or update run entry."""
