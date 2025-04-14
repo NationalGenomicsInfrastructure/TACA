@@ -299,7 +299,7 @@ def ont_transfer(run_abspath: str | None, qc: bool = False):
                             process_qc_run(ONT_qc_run(run_dir))
                     except WaitForRun as e:
                         logger.info(e)
-                    except BaseException as e:
+                    except Exception as e:
                         send_error_mail(os.path.basename(run_dir), e)
 
 
