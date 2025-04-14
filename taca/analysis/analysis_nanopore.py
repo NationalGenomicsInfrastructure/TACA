@@ -298,7 +298,7 @@ def ont_transfer(run_abspath: str | None, qc: bool = False):
                         else:
                             process_qc_run(ONT_qc_run(run_dir))
                     except WaitForRun as e:
-                        logger.info(f"Skipping run {os.path.basename(run_dir)}: {e}")
+                        logger.info(e)
                     except BaseException as e:
                         send_error_mail(os.path.basename(run_dir), e)
 
@@ -309,7 +309,7 @@ class WaitForRun(Exception):
     """
 
     def __init__(self, message: str):
-        logging.info(message)
+        super().__init__(message)
 
 
 def ont_updatedb(run_abspath: str):
