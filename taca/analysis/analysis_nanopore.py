@@ -54,17 +54,15 @@ def process_user_run(ont_user_run: ONT_user_run):
     For a single ONT user run...
 
         - Ensure there is a database entry corresponding to an ongoing run
-
-        If not fully synced:
-            - Skip
-        If fully synced:
-            - Ensure all necessary files to proceed with processing are present
-            - Update the StatusDB entry
-            - Copy metadata
-            - Copy HTML report to GenStat
-            - Transfer run to cluster
-            - Update transfer log
-            - Archive run
+        - Ensure run is fully synced
+        - Ensure all necessary files to proceed with processing are present
+        - Update the StatusDB entry
+        - Copy HTML report to GenStat
+        - Generate and publish TouliggQC report
+        - Copy metadata to ngi-nas-ns
+        - Transfer run to cluster
+        - Update transfer log
+        - Archive run
 
     Any errors raised here-in should be sent with traceback as an email.
     """
@@ -72,52 +70,49 @@ def process_user_run(ont_user_run: ONT_user_run):
     logger.info(f"{ont_user_run.run_name}: Touching StatusDB...")
     ont_user_run.touch_db_entry()
 
+    # Is the run fully synced?
     if not ont_user_run.is_synced():
         raise WaitForRun(f"{ont_user_run.run_name}: Run is not fully synced, skipping.")
-    else:
-        if ont_user_run.is_transferred():
-            logger.warning(
-                f"{ont_user_run.run_name}: Run is already logged as transferred, sending mail."
-            )
-            raise AssertionError(
-                "Run is logged as transferred, but has not been archived."
-            )
-        else:
-            logger.info(f"{ont_user_run.run_name}: Processing transfer...")
 
-            # Assert all files are in place
-            logger.info(f"{ont_user_run.run_name}: Asserting run contents...")
-            ont_user_run.assert_contents()
+    # Assert all files are in place
+    logger.info(f"{ont_user_run.run_name}: Asserting run contents...")
+    ont_user_run.assert_contents()
 
-            # Update StatusDB
-            logger.info(f"{ont_user_run.run_name}: Updating StatusDB...")
-            ont_user_run.update_db_entry()
+    # Update StatusDB
+    logger.info(f"{ont_user_run.run_name}: Updating StatusDB...")
+    ont_user_run.update_db_entry()
 
-            # Copy HTML report
-            logger.info(f"{ont_user_run.run_name}: Putting HTML report on GenStat...")
-            ont_user_run.copy_html_report()
+    # Copy HTML report
+    logger.info(f"{ont_user_run.run_name}: Putting HTML report on GenStat...")
+    ont_user_run.copy_html_report()
 
-            # Generate and publish TouliggQC report
-            logger.info(
-                f"{ont_user_run.run_name}: Generating and publishing ToulligQC report..."
-            )
-            ont_user_run.toulligqc_report()
+    # Generate and publish TouliggQC report
+    logger.info(
+        f"{ont_user_run.run_name}: Generating and publishing ToulligQC report..."
+    )
+    ont_user_run.toulligqc_report()
 
-            # Copy metadata
-            logger.info(f"{ont_user_run.run_name}: Copying metadata...")
-            ont_user_run.copy_metadata()
+    # Copy metadata
+    logger.info(f"{ont_user_run.run_name}: Copying metadata...")
+    ont_user_run.copy_metadata()
 
-            # Transfer run
-            logger.info(f"{ont_user_run.run_name}: Transferring to cluster...")
-            ont_user_run.transfer_run()
+    # Check transfer status
+    if ont_user_run.is_transferred():
+        raise AssertionError(
+            f"{ont_user_run.run_name}: Run is already logged as transferred."
+        )
 
-            # Update transfer log
-            logger.info(f"{ont_user_run.run_name}: Updating transfer log...")
-            ont_user_run.update_transfer_log()
+    # Transfer run
+    logger.info(f"{ont_user_run.run_name}: Transferring to cluster...")
+    ont_user_run.transfer_run()
 
-            # Archive run
-            logger.info(f"{ont_user_run.run_name}: Archiving run...")
-            ont_user_run.archive_run()
+    # Update transfer log
+    logger.info(f"{ont_user_run.run_name}: Updating transfer log...")
+    ont_user_run.update_transfer_log()
+
+    # Archive run
+    logger.info(f"{ont_user_run.run_name}: Archiving run...")
+    ont_user_run.archive_run()
 
 
 def process_qc_run(ont_qc_run: ONT_qc_run):
@@ -180,7 +175,6 @@ def process_qc_run(ont_qc_run: ONT_qc_run):
     if not ont_qc_run.has_raw_seq_output():
         logger.info(f"{ont_qc_run.run_name}: Run has no sequencing output, continuing")
 
-    else:
         if not ont_qc_run.has_fastq_output():
             raise WaitForRun(
                 f"{ont_qc_run.run_name}: Run has no fastq output, skipping."
@@ -245,8 +239,6 @@ def process_qc_run(ont_qc_run: ONT_qc_run):
             f"{ont_qc_run.run_name}: Run is already logged as transferred, skipping."
         )
         raise WaitForRun("Run is already logged as transferred.")
-
-    logger.info(f"{ont_qc_run.run_name}: Processing transfer...")
 
     # Copy metadata
     logger.info(f"{ont_qc_run.run_name}: Copying metadata...")
