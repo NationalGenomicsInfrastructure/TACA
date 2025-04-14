@@ -73,7 +73,7 @@ def process_user_run(ont_user_run: ONT_user_run):
     ont_user_run.touch_db_entry()
 
     if not ont_user_run.is_synced():
-        logger.info(f"{ont_user_run.run_name}: Run is not fully synced, skipping.")
+        raise WaitForRun(f"{ont_user_run.run_name}: Run is not fully synced, skipping.")
     else:
         if ont_user_run.is_transferred():
             logger.warning(
