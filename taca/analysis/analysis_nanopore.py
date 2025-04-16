@@ -48,15 +48,15 @@ def send_error_mail(run_name, error: BaseException):
     logger.info("Sent error mail.")
 
 
-def process_user_run(ont_user_run: ONT_user_run):
+def process_user_run(run: ONT_user_run):
     """This control function orchestrates the sequential execution of the ONT_user_run class methods.
 
     For a single ONT user run...
 
-        - Ensure there is a database entry corresponding to an ongoing run
-        - Ensure run is fully synced
+        - Ensure there is a StatusDB entry
+        - Ensure run is fully synced from instrument
         - Ensure all necessary files to proceed with processing are present
-        - Update the StatusDB entry
+        - Update the StatusDB entry and set to "finished"
         - Copy HTML report to GenStat
         - Generate and publish TouliggQC report
         - Copy metadata to ngi-nas-ns
@@ -67,55 +67,55 @@ def process_user_run(ont_user_run: ONT_user_run):
     Any errors raised here-in should be sent with traceback as an email.
     """
 
-    logger.info(f"{ont_user_run.run_name}: Touching StatusDB...")
-    ont_user_run.touch_db_entry()
+    logger.info(f"{run.run_name}: Touching StatusDB...")
+    run.touch_db_entry()
 
     # Is the run fully synced?
-    if not ont_user_run.is_synced():
-        raise WaitForRun(f"{ont_user_run.run_name}: Run is not fully synced, skipping.")
+    if not run.is_synced():
+        raise WaitForRun(f"{run.run_name}: Run is not fully synced, skipping.")
 
     # Assert all files are in place
-    logger.info(f"{ont_user_run.run_name}: Asserting run contents...")
-    ont_user_run.assert_contents()
+    logger.info(f"{run.run_name}: Asserting run contents...")
+    run.assert_contents()
 
     # Update StatusDB
-    logger.info(f"{ont_user_run.run_name}: Updating StatusDB...")
-    ont_user_run.update_db_entry()
+    logger.info(f"{run.run_name}: Updating StatusDB...")
+    run.update_db_entry()
 
     # Copy HTML report
-    logger.info(f"{ont_user_run.run_name}: Putting HTML report on GenStat...")
-    ont_user_run.copy_html_report()
+    logger.info(f"{run.run_name}: Putting HTML report on GenStat...")
+    run.copy_html_report()
 
     # Generate and publish TouliggQC report
-    logger.info(
-        f"{ont_user_run.run_name}: Generating and publishing ToulligQC report..."
-    )
-    ont_user_run.toulligqc_report()
+    logger.info(f"{run.run_name}: Generating and publishing ToulligQC report...")
+    run.toulligqc_report()
 
     # Copy metadata
-    logger.info(f"{ont_user_run.run_name}: Copying metadata...")
-    ont_user_run.copy_metadata()
+    logger.info(f"{run.run_name}: Copying metadata...")
+    run.copy_metadata()
 
-    # Check transfer status
-    if ont_user_run.is_transferred():
+    # Transfer to analysis server
+    transfer_status = run.get_transfer_status()
+    if transfer_status == "not started":
+        logger.info(f"{run.run_name}: Starting transfer...")
+        run.make_transfer_indicator()
+        run.transfer()
+    elif transfer_status == "ongoing":
+        raise WaitForRun(f"{run.run_name}: Transfer is ongoing, skipping.")
+    elif transfer_status == "rsync done":
+        logger.info(f"{run.run_name}: Transfer complete. Archiving...")
+        run.update_transfer_log()
+        run.remove_transfer_indicator()
+        run.archive_run()
+    elif transfer_status == "rsync failed":
+        raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
+    else:
         raise AssertionError(
-            f"{ont_user_run.run_name}: Run is already logged as transferred."
+            f"{run.run_name}: Undetermined transfer status, please investigate."
         )
 
-    # Transfer run
-    logger.info(f"{ont_user_run.run_name}: Transferring to cluster...")
-    ont_user_run.transfer_run()
 
-    # Update transfer log
-    logger.info(f"{ont_user_run.run_name}: Updating transfer log...")
-    ont_user_run.update_transfer_log()
-
-    # Archive run
-    logger.info(f"{ont_user_run.run_name}: Archiving run...")
-    ont_user_run.archive_run()
-
-
-def process_qc_run(ont_qc_run: ONT_qc_run):
+def process_qc_run(run: ONT_qc_run):
     f"""This control function orchestrates the sequential execution of the {ONT_qc_run} methods.
 
         For a single ONT QC run...
@@ -148,113 +148,101 @@ def process_qc_run(ont_qc_run: ONT_qc_run):
     Any errors raised here-in should be sent with traceback as an email.
     """
 
-    logger.info(f"{ont_qc_run.run_name}: Touching StatusDB...")
-    ont_qc_run.touch_db_entry()
+    logger.info(f"{run.run_name}: Touching StatusDB...")
+    run.touch_db_entry()
 
     # Is the run fully synced?
-    if not ont_qc_run.is_synced():
-        raise WaitForRun(f"{ont_qc_run.run_name}: Run is not fully synced, skipping.")
+    if not run.is_synced():
+        raise WaitForRun(f"{run.run_name}: Run is not fully synced, skipping.")
 
     # Assert all files are in place
-    logger.info(f"{ont_qc_run.run_name}: Asserting run contents...")
-    ont_qc_run.assert_contents()
+    logger.info(f"{run.run_name}: Asserting run contents...")
+    run.assert_contents()
 
     # Update StatusDB
-    logger.info(f"{ont_qc_run.run_name}: Updating StatusDB...")
-    ont_qc_run.update_db_entry()
+    logger.info(f"{run.run_name}: Updating StatusDB...")
+    run.update_db_entry()
 
     # Copy HTML report
-    logger.info(f"{ont_qc_run.run_name}: Putting HTML report on GenStat...")
-    ont_qc_run.copy_html_report()
+    logger.info(f"{run.run_name}: Putting HTML report on GenStat...")
+    run.copy_html_report()
 
     # Generate and publish TouliggQC report
-    logger.info(f"{ont_qc_run.run_name}: Generating and publishing ToulligQC report...")
-    ont_qc_run.toulligqc_report()
+    logger.info(f"{run.run_name}: Generating and publishing ToulligQC report...")
+    run.toulligqc_report()
 
     # Look at seq data
-    if not ont_qc_run.has_raw_seq_output():
-        logger.info(f"{ont_qc_run.run_name}: Run has no sequencing output, continuing")
+    if not run.has_raw_seq_output():
+        logger.info(f"{run.run_name}: Run has no sequencing output, continuing")
 
-        if not ont_qc_run.has_fastq_output():
-            raise WaitForRun(
-                f"{ont_qc_run.run_name}: Run has no fastq output, skipping."
-            )
+        if not run.has_fastq_output():
+            raise WaitForRun(f"{run.run_name}: Run has no fastq output, skipping.")
 
         # Anglerfish
-        logger.info(
-            f"{ont_qc_run.run_name}: Checking whether Anglerfish has been run..."
-        )
+        logger.info(f"{run.run_name}: Checking whether Anglerfish has been run...")
 
-        anglerfish_exit_code = ont_qc_run.get_anglerfish_exit_code()
+        anglerfish_exit_code = run.get_anglerfish_exit_code()
 
         # Anglerfish not run
         if anglerfish_exit_code is None:
-            logger.info(
-                f"{ont_qc_run.run_name}: Anglerfish has not been run, continuing."
-            )
+            logger.info(f"{run.run_name}: Anglerfish has not been run, continuing.")
 
-            logger.info(
-                f"{ont_qc_run.run_name}: Checking whether Anglerfish is ongoing..."
-            )
+            logger.info(f"{run.run_name}: Checking whether Anglerfish is ongoing...")
 
-            anglerfish_pid = ont_qc_run.get_anglerfish_pid()
+            anglerfish_pid = run.get_anglerfish_pid()
 
             # Anglerfish ongoing
             if anglerfish_pid:
                 logger.info(
-                    f"{ont_qc_run.run_name}: Anglerfish is ongoing with process ID {anglerfish_pid}, skipping."
+                    f"{run.run_name}: Anglerfish is ongoing with process ID {anglerfish_pid}, skipping."
                 )
                 raise WaitForRun("Anglerfish is ongoing, skipping.")
 
-            logger.info(
-                f"{ont_qc_run.run_name}: Anglerfish is not ongoing, continuing."
-            )
+            logger.info(f"{run.run_name}: Anglerfish is not ongoing, continuing.")
 
-            logger.info(f"{ont_qc_run.run_name}: Fetching Anglerfish samplesheet...")
+            logger.info(f"{run.run_name}: Fetching Anglerfish samplesheet...")
 
-            if not ont_qc_run.fetch_anglerfish_samplesheet():
+            if not run.fetch_anglerfish_samplesheet():
                 raise WaitForRun("Could not find Anglerfish sample sheet, skipping.")
 
-            logger.info(f"{ont_qc_run.run_name}: Starting Anglerfish...")
-            ont_qc_run.run_anglerfish()
+            logger.info(f"{run.run_name}: Starting Anglerfish...")
+            run.run_anglerfish()
             raise WaitForRun("Anglerfish has been started, skipping.")
 
         # Anglerfish run
         elif isinstance(anglerfish_exit_code, int):
             if anglerfish_exit_code == 0:
                 logger.info(
-                    f"{ont_qc_run.run_name}: Anglerfish has finished successfully, continuing."
+                    f"{run.run_name}: Anglerfish has finished successfully, continuing."
                 )
             elif anglerfish_exit_code > 0:
-                logger.error(
-                    f"{ont_qc_run.run_name}: Anglerfish has failed, throwing error."
-                )
-                raise AssertionError(f"{ont_qc_run.run_name}: Anglerfish failed.")
+                logger.error(f"{run.run_name}: Anglerfish has failed, throwing error.")
+                raise AssertionError(f"{run.run_name}: Anglerfish failed.")
         else:
             raise AssertionError("Unexpected Anglerfish exit code.")
 
     # Check transfer status
-    if ont_qc_run.is_transferred():
+    if run.is_transferred():
         logger.warning(
-            f"{ont_qc_run.run_name}: Run is already logged as transferred, skipping."
+            f"{run.run_name}: Run is already logged as transferred, skipping."
         )
         raise WaitForRun("Run is already logged as transferred.")
 
     # Copy metadata
-    logger.info(f"{ont_qc_run.run_name}: Copying metadata...")
-    ont_qc_run.copy_metadata()
+    logger.info(f"{run.run_name}: Copying metadata...")
+    run.copy_metadata()
 
     # Transfer run
-    logger.info(f"{ont_qc_run.run_name}: Transferring to cluster...")
-    ont_qc_run.transfer_run()
+    logger.info(f"{run.run_name}: Transferring to cluster...")
+    run.transfer_run()
 
     # Update transfer log
-    logger.info(f"{ont_qc_run.run_name}: Updating transfer log...")
-    ont_qc_run.update_transfer_log()
+    logger.info(f"{run.run_name}: Updating transfer log...")
+    run.update_transfer_log()
 
     # Archive run
-    logger.info(f"{ont_qc_run.run_name}: Archiving run...")
-    ont_qc_run.archive_run()
+    logger.info(f"{run.run_name}: Archiving run...")
+    run.archive_run()
 
 
 def ont_transfer(run_abspath: str | None, qc: bool = False):
