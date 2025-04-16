@@ -120,8 +120,8 @@ class ONT_run:
         self.db = NanoporeRunsConnection(CONFIG["statusdb"], dbname="nanopore_runs")
 
         # Define paths of rsync indicator files
-        self.transfer_indicator = os.path.join(self.run_dir, ".rsync_ongoing")
-        self.rsync_exit_file = os.path.join(self.run_dir, ".rsync_exit_status")
+        self.transfer_indicator = os.path.join(self.run_abspath, ".rsync_ongoing")
+        self.rsync_exit_file = os.path.join(self.run_abspath, ".rsync_exit_status")
 
     def has_file(self, content_pattern: str) -> bool:
         """Checks within run dir for pattern, e.g. '/report*.json', returns bool."""
@@ -507,7 +507,7 @@ class ONT_run:
         """Transfer dir to destination specified in config file via rsync"""
 
         logger.info(
-            f"{self.run_name}: Transferring to {self.analysis_server['host'] if self.analysis_server else self.destination}..."
+            f"{self.run_name}: Transferring to {self.transfer_details['host']}..."
         )
 
         command = (
@@ -515,17 +515,19 @@ class ONT_run:
             + " -rutLv"  # recursive, update, preserve timestamps, follow symlinks, verbose
             + f" --chown={self.transfer_details['owner']}"
             + f" --chmod={self.transfer_details['permissions']}"
-            + f" {self.run_dir}"
-            + f" {self.transfer_details['user']}@{self.transfer_details['host']}:{self.transfer_details['destination']}"
-            + f"; echo $? > {os.path.join(self.run_dir, '.rsync_exit_status')}"
+            + f" {self.run_abspath}"
+            + f" {self.transfer_details['user']}@{self.transfer_details['host']}:{self.destination}"
+            + f"; echo $? > {os.path.join(self.run_abspath, '.rsync_exit_status')}"
         )
 
         try:
             p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+            # The PID returned by p_handle will not be the rsync itself
+            # 'ps -ef | grep <pid>' will show the children of the process
             logger.info(
                 "Transfer to analysis cluster "
-                f"started for run {self} on {datetime.now()}"
-                f"with p_handle {p_handle}"
+                f"started for run {self.run_name} on {datetime.now()} "
+                f"with PID {p_handle.pid} and command '{p_handle.args}'."
             )
         except subprocess.CalledProcessError:
             logger.warning(
@@ -572,7 +574,7 @@ class ONT_run:
     def in_transfer_log(self):
         with open(self.transfer_log) as transfer_log:
             for row in transfer_log.readlines():
-                if row.startswith(self.NGI_run_id):
+                if row.startswith(self.run_name):
                     return True
         return False
 
@@ -593,7 +595,7 @@ class ONT_run:
     def status_changed(self):
         if not self.run_parameters_parsed:
             raise RuntimeError(
-                f"Run parameters not parsed for run {self.run_dir}, cannot check status"
+                f"Run parameters not parsed for run {self.run_abspath}, cannot check status"
             )
         db_run_status = self.db.check_db_run_status(self.NGI_run_id)
         return db_run_status != self.status
@@ -613,7 +615,9 @@ class ONT_user_run(ONT_run):
     def __init__(self, run_abspath: str):
         super().__init__(run_abspath)
         self.run_type = "user_run"
-        _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type][self.instrument]
+        _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type]["instruments"][
+            self.instrument
+        ]
         self.transfer_log = _conf["transfer_log"]
         self.archive_dir = _conf["archive_dir"]
         self.metadata_dir = _conf["metadata_dir"]
