@@ -95,20 +95,19 @@ def process_user_run(run: ONT_user_run):
     run.copy_metadata()
 
     # Transfer to analysis server
-    transfer_status = run.transfer_status
-    if transfer_status == "not started":
+    if run.transfer_status == "not started":
         logger.info(f"{run.run_name}: Starting transfer...")
         run.transfer()
-    elif transfer_status == "ongoing":
+    elif run.transfer_status == "ongoing":
         raise WaitForRun(f"{run.run_name}: Transfer is ongoing, skipping.")
-    elif transfer_status == "rsync done":
+    elif run.transfer_status == "rsync done":
         logger.info(f"{run.run_name}: Transfer complete. Archiving...")
         run.update_transfer_log()
         run.remove_transfer_indicator()
         run.archive_run()
-    elif transfer_status == "rsync failed":
+    elif run.transfer_status == "rsync failed":
         raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
-    elif transfer_status == "transferred":
+    elif run.transfer_status == "transferred":
         logger.warning(
             f"{run.run_name}: Run is already logged as transferred, skipping."
         )

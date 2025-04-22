@@ -535,7 +535,7 @@ class ONT_run:
                 f"started for run {self.run_name} on {datetime.now()} "
                 f"with PID {p_handle.pid} and command '{p_handle.args}'."
             )
-            self._make_transfer_indicator(p_handle.pid)
+            self._make_transfer_indicator(str(p_handle.pid))
         except subprocess.CalledProcessError:
             logger.warning(
                 "An error occurred while starting transfer to analysis cluster "
