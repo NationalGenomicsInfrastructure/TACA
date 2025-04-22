@@ -546,14 +546,18 @@ class ONT_run:
             f.write(self.rsync_pid)
 
     @property
-    def rsync_pid(self):
-        if os.path.exists(self.transfer_indicator):
-            with open(self.transfer_indicator) as f:
-                contents = f.read()
-        else:
+    def rsync_pid(self) -> str:
+        if not os.path.exists(self.transfer_indicator):
             return None
 
-        return contents if contents else None
+        with open(self.transfer_indicator) as f:
+            contents = f.read()
+
+        if contents == "":
+            return None
+
+        assert contents.isdigit()
+        return contents
 
     def remove_transfer_indicator(self):
         os.remove(self.transfer_indicator)
