@@ -279,9 +279,9 @@ def get_ss_projects_ont(ont_run, couch_connection):
         )
     instrument = None
     if ont_run.instrument:
-        if "minion" in ont_run.instrument:
+        if "minion" in ont_run.instrument.lower():
             instrument = "MinION"
-        elif "promethION" in ont_run.instrument:
+        elif "promethion" in ont_run.instrument.lower():
             instrument = "PromethION"
     return proj_tree, instrument
 
