@@ -95,7 +95,7 @@ def process_user_run(run: ONT_user_run):
     run.copy_metadata()
 
     # Transfer to analysis server
-    transfer_status = run.get_transfer_status()
+    transfer_status = run.transfer_status
     if transfer_status == "not started":
         logger.info(f"{run.run_name}: Starting transfer...")
         run.make_transfer_indicator()
@@ -109,6 +109,11 @@ def process_user_run(run: ONT_user_run):
         run.archive_run()
     elif transfer_status == "rsync failed":
         raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
+    elif transfer_status == "transferred":
+        logger.warning(
+            f"{run.run_name}: Run is already logged as transferred, skipping."
+        )
+        raise WaitForRun("Run is already logged as transferred.")
     else:
         raise AssertionError(
             f"{run.run_name}: Undetermined transfer status, please investigate."
@@ -152,7 +157,7 @@ def process_qc_run(run: ONT_qc_run):
     run.touch_db_entry()
 
     # Is the run fully synced?
-    if not run.is_synced():
+    if not run.is_synced:
         raise WaitForRun(f"{run.run_name}: Run is not fully synced, skipping.")
 
     # Assert all files are in place

@@ -145,6 +145,7 @@ class ONT_run:
         else:
             raise AssertionError(f"Found multiple instances of {query_path}")
 
+    @property
     def is_synced(self) -> bool:
         return self.has_file("/.sync_finished")
 
@@ -522,8 +523,13 @@ class ONT_run:
 
         try:
             p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
-            # The PID returned by p_handle will not be the rsync itself
-            # 'ps -ef | grep <pid>' will show the children of the process
+            """The PID of p_handle will map to a background subshell
+            calling bash to run the command. The rsync process itself
+            will be a child process of that subshell.
+
+            'ps -ef | grep <pid>' will show both the invoked subprocess
+            and its children.
+            """
             logger.info(
                 "Transfer to analysis cluster "
                 f"started for run {self.run_name} on {datetime.now()} "
@@ -536,7 +542,18 @@ class ONT_run:
             )
 
     def make_transfer_indicator(self):
-        open(self.transfer_indicator, "w").close()
+        with open(self.transfer_indicator, "w") as f:
+            f.write(self.rsync_pid)
+
+    @property
+    def rsync_pid(self):
+        if os.path.exists(self.transfer_indicator):
+            with open(self.transfer_indicator) as f:
+                contents = f.read()
+        else:
+            return None
+
+        return contents if contents else None
 
     def remove_transfer_indicator(self):
         os.remove(self.transfer_indicator)
@@ -552,25 +569,21 @@ class ONT_run:
             logger.error(msg)
             raise OSError(msg)
 
-    def get_transfer_status(self):
-        if (
-            not self.in_transfer_log()
-            and not self.transfer_ongoing()
-            and not self.rsync_complete()
-        ):
-            return "not started"
-        elif self.transfer_ongoing() and not self.rsync_complete():
-            return "ongoing"
-        elif self.rsync_complete() and not self.in_transfer_log():
-            if self.rsync_successful():
+    @property
+    def transfer_status(self):
+        if self.in_transfer_log:
+            return "transferred"
+        elif self.rsync_complete:
+            if self.rsync_successful:
                 return "rsync done"
             else:
                 return "rsync failed"
-        elif self.in_transfer_log():
-            return "transferred"
+        elif self.transfer_ongoing:
+            return "ongoing"
         else:
-            return "unknown"
+            return "not started"
 
+    @property
     def in_transfer_log(self):
         with open(self.transfer_log) as transfer_log:
             for row in transfer_log.readlines():
@@ -578,12 +591,15 @@ class ONT_run:
                     return True
         return False
 
+    @property
     def transfer_ongoing(self):
         return os.path.isfile(self.transfer_indicator)
 
+    @property
     def rsync_complete(self):
         return os.path.isfile(self.rsync_exit_file)
 
+    @property
     def rsync_successful(self):
         with open(self.rsync_exit_file) as rsync_exit_file:
             rsync_exit_status = rsync_exit_file.readlines()
@@ -591,14 +607,6 @@ class ONT_run:
             return True
         else:
             return False
-
-    def status_changed(self):
-        if not self.run_parameters_parsed:
-            raise RuntimeError(
-                f"Run parameters not parsed for run {self.run_abspath}, cannot check status"
-            )
-        db_run_status = self.db.check_db_run_status(self.NGI_run_id)
-        return db_run_status != self.status
 
     def archive_run(self):
         """Move directory to nosync."""
