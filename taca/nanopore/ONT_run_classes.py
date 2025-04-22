@@ -365,7 +365,7 @@ class ONT_run:
         exclude_patterns_quoted = ["'" + pattern + "'" for pattern in exclude_patterns]
 
         src = self.run_abspath
-        dst = self.transfer_details["metadata_dir"]
+        dst = self.metadata_dir
 
         os.system(
             f"rsync -rvua --exclude={{{','.join(exclude_patterns_quoted)}}} {src} {dst}"
@@ -504,7 +504,7 @@ class ONT_run:
             logger.error(msg)
             raise RsyncError(msg)
 
-    def transfer_run(self):
+    def transfer(self):
         """Transfer dir to destination specified in config file via rsync"""
 
         logger.info(
@@ -535,15 +535,16 @@ class ONT_run:
                 f"started for run {self.run_name} on {datetime.now()} "
                 f"with PID {p_handle.pid} and command '{p_handle.args}'."
             )
+            self._make_transfer_indicator(p_handle.pid)
         except subprocess.CalledProcessError:
             logger.warning(
                 "An error occurred while starting transfer to analysis cluster "
                 f"for {self} on {datetime.now()}."
             )
 
-    def make_transfer_indicator(self):
+    def _make_transfer_indicator(self, contents: str = ""):
         with open(self.transfer_indicator, "w") as f:
-            f.write(self.rsync_pid)
+            f.write(contents)
 
     @property
     def rsync_pid(self) -> str:

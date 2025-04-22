@@ -71,7 +71,7 @@ def process_user_run(run: ONT_user_run):
     run.touch_db_entry()
 
     # Is the run fully synced?
-    if not run.is_synced():
+    if not run.is_synced:
         raise WaitForRun(f"{run.run_name}: Run is not fully synced, skipping.")
 
     # Assert all files are in place
@@ -98,7 +98,6 @@ def process_user_run(run: ONT_user_run):
     transfer_status = run.transfer_status
     if transfer_status == "not started":
         logger.info(f"{run.run_name}: Starting transfer...")
-        run.make_transfer_indicator()
         run.transfer()
     elif transfer_status == "ongoing":
         raise WaitForRun(f"{run.run_name}: Transfer is ongoing, skipping.")
