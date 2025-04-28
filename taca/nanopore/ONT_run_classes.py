@@ -348,6 +348,9 @@ class ONT_run:
     def copy_metadata(self):
         """Copies run dir (excluding seq data) to metadata dir"""
 
+        src = self.run_abspath
+        dst = self.metadata_dir
+
         exclude_patterns = [
             # Main seq dirs
             "**/bam*/***",
@@ -361,20 +364,22 @@ class ONT_run:
             "*.fastq*",
             "*.pod5*",
         ]
-
         exclude_patterns_quoted = ["'" + pattern + "'" for pattern in exclude_patterns]
 
-        src = self.run_abspath
-        dst = self.metadata_dir
+        command = [
+            "rsync",
+            "-auvP",
+            f"--exclude={{{','.join(exclude_patterns_quoted)}}}",
+            src,
+            dst,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
 
-        command_str = (
-            f"rsync -auvP --exclude={{{','.join(exclude_patterns_quoted)}}} {src} {dst}"
-        )
-        logger.info(f"Calling rsync command: {command_str}")
-
-        if os.system(command_str) != 0:
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
             raise RsyncError(
-                f"{self.run_name}: Error occurred when copying metadata from {src} to {dst}."
+                f"{self.run_name}: Error occurred when copying metadata from {src} to {dst}. {e}"
             )
 
     def copy_html_report(self):
@@ -387,11 +392,19 @@ class ONT_run:
             f"report_{self.run_name}.html",
         )
 
-        command_str = f"rsync -auvP {report_src_path} {report_dest_path}"
-        logger.info(f"Calling rsync command: {command_str}")
-        if os.system(command_str) != 0:
+        command = [
+            "rsync",
+            "-auvP",
+            report_src_path,
+            report_dest_path,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
+
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
             raise RsyncError(
-                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}. {e}"
             )
 
     def toulligqc_report(self):
@@ -493,11 +506,18 @@ class ONT_run:
             f"report_{self.run_name}.html",
         )
 
-        command_str = f"rsync -auvP {report_src_path} {report_dest_path}"
-        logger.info(f"Calling rsync command: {command_str}")
-        if os.system(command_str) != 0:
+        command = [
+            "rsync",
+            "-auvP",
+            report_src_path,
+            report_dest_path,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
             raise RsyncError(
-                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}. {e}"
             )
 
     def transfer(self):
@@ -698,25 +718,30 @@ class ONT_qc_run(ONT_run):
         if len(glob_results) == 0:
             return False
 
-        else:
-            # Sort by ascending date
-            glob_results.sort()
+        # Sort by ascending date
+        glob_results.sort()
 
-            # Grab abspath of latest samplesheet
-            src = glob_results[-1]
-            dst = os.path.join(self.run_abspath, os.path.basename(src))
+        # Grab abspath of latest samplesheet
+        src = glob_results[-1]
+        dst = os.path.join(self.run_abspath, os.path.basename(src))
 
-            # Copy into run directory
-            command_str = f"rsync -auvP {src} {dst}"
-            logger.info(f"Calling rsync command: {command_str}")
+        # Copy into run directory
+        command = [
+            "rsync",
+            "-auvP",
+            src,
+            dst,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
 
-            if os.system(command_str) == 0:
-                self.anglerfish_samplesheet = dst
-                return True
-            else:
-                raise RsyncError(
-                    f"{self.run_name}: Error occurred when copying anglerfish samplesheet to run dir."
-                )
+        try:
+            subprocess.run(command, check=True)
+            self.anglerfish_samplesheet = dst
+            return True
+        except subprocess.CalledProcessError as e:
+            raise RsyncError(
+                f"{self.run_name}: Error occurred when copying anglerfish samplesheet to run dir. {e}"
+            )
 
     def has_fastq_output(self) -> bool:
         """Check whether run has fastq output."""
