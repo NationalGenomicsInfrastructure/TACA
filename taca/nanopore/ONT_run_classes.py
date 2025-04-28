@@ -364,15 +364,15 @@ class ONT_run:
             "*.fastq*",
             "*.pod5*",
         ]
-        exclude_patterns_quoted = ["'" + pattern + "'" for pattern in exclude_patterns]
 
+        # Build the rsync command
         command = [
             "rsync",
-            "-auvP",
-            f"--exclude={{{','.join(exclude_patterns_quoted)}}}",
-            src,
-            dst,
+            "-auvP",  # Archive, update, verbose, progress
         ]
+        for pattern in exclude_patterns:
+            command.append(f"--exclude={pattern}")
+        command.extend([src, dst])
         logger.info(f"Calling rsync command: {' '.join(command)}")
 
         try:
