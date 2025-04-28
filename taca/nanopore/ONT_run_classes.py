@@ -13,7 +13,7 @@ import pandas as pd
 
 from taca.utils.config import CONFIG
 from taca.utils.statusdb import NanoporeRunsConnection
-from taca.utils.transfer import RsyncAgent, RsyncError
+from taca.utils.transfer import RsyncError
 
 logger = logging.getLogger(__name__)
 
@@ -367,9 +367,15 @@ class ONT_run:
         src = self.run_abspath
         dst = self.metadata_dir
 
-        os.system(
-            f"rsync -rvua --exclude={{{','.join(exclude_patterns_quoted)}}} {src} {dst}"
+        command_str = (
+            f"rsync -auvP --exclude={{{','.join(exclude_patterns_quoted)}}} {src} {dst}"
         )
+        logger.info(f"Calling rsync command: {command_str}")
+
+        if os.system(command_str) != 0:
+            raise RsyncError(
+                f"{self.run_name}: Error occurred when copying metadata from {src} to {dst}."
+            )
 
     def copy_html_report(self):
         logger.info(f"{self.run_name}: Transferring .html report to ngi-internal...")
@@ -380,17 +386,13 @@ class ONT_run:
             self.minknow_reports_dir,
             f"report_{self.run_name}.html",
         )
-        transfer_object = RsyncAgent(
-            src_path=report_src_path,
-            dest_path=report_dest_path,
-            validate=False,
-        )
-        try:
-            transfer_object.transfer()
-        except RsyncError:
-            msg = f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
-            logger.error(msg)
-            raise RsyncError(msg)
+
+        command_str = f"rsync -auvP {report_src_path} {report_dest_path}"
+        logger.info(f"Calling rsync command: {command_str}")
+        if os.system(command_str) != 0:
+            raise RsyncError(
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
+            )
 
     def toulligqc_report(self):
         """Generate a QC report for the run using ToulligQC and publish it to GenStat."""
@@ -481,28 +483,22 @@ class ONT_run:
         else:
             raise subprocess.CalledProcessError(process.returncode, command_list)
 
-        # Copy the report to GenStat
-
+        # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
         logger.info(
             f"{self.run_name}: Transferring ToulligQC report to ngi-internal..."
         )
-        # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
         report_src_path = self.get_file(f"/{report_dir_name}/report.html")
         report_dest_path = os.path.join(
             self.toulligqc_reports_dir,
             f"report_{self.run_name}.html",
         )
-        transfer_object = RsyncAgent(
-            src_path=report_src_path,
-            dest_path=report_dest_path,
-            validate=False,
-        )
-        try:
-            transfer_object.transfer()
-        except RsyncError:
-            msg = f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
-            logger.error(msg)
-            raise RsyncError(msg)
+
+        command_str = f"rsync -auvP {report_src_path} {report_dest_path}"
+        logger.info(f"Calling rsync command: {command_str}")
+        if os.system(command_str) != 0:
+            raise RsyncError(
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
+            )
 
     def transfer(self):
         """Transfer dir to destination specified in config file via rsync"""
@@ -513,7 +509,7 @@ class ONT_run:
 
         command = (
             "rsync"
-            + " -rutLv"  # recursive, update, preserve timestamps, follow symlinks, verbose
+            + " -auvP"  # archive, update, verbose, progress
             + f" --chown={self.transfer_details['owner']}"
             + f" --chmod={self.transfer_details['permissions']}"
             + f" {self.run_abspath}"
@@ -521,26 +517,20 @@ class ONT_run:
             + f"; echo $? > {os.path.join(self.run_abspath, '.rsync_exit_status')}"
         )
 
-        try:
-            p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
-            """The PID of p_handle will map to a background subshell
-            calling bash to run the command. The rsync process itself
-            will be a child process of that subshell.
+        p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        """The PID of p_handle will map to a background subshell
+        calling bash to run the command. The rsync process itself
+        will be a child process of that subshell.
 
-            'ps -ef | grep <pid>' will show both the invoked subprocess
-            and its children.
-            """
-            logger.info(
-                "Transfer to analysis cluster "
-                f"started for run {self.run_name} on {datetime.now()} "
-                f"with PID {p_handle.pid} and command '{p_handle.args}'."
-            )
-            self._make_transfer_indicator(str(p_handle.pid))
-        except subprocess.CalledProcessError:
-            logger.warning(
-                "An error occurred while starting transfer to analysis cluster "
-                f"for {self} on {datetime.now()}."
-            )
+        'ps -ef | grep <pid>' will show both the invoked subprocess
+        and its children.
+        """
+        logger.info(
+            "Transfer to analysis cluster "
+            f"started for run {self.run_name} on {datetime.now()} "
+            f"with PID {p_handle.pid} and command '{p_handle.args}'."
+        )
+        self._make_transfer_indicator(str(p_handle.pid))
 
     def _make_transfer_indicator(self, contents: str = ""):
         with open(self.transfer_indicator, "w") as f:
@@ -717,7 +707,10 @@ class ONT_qc_run(ONT_run):
             dst = os.path.join(self.run_abspath, os.path.basename(src))
 
             # Copy into run directory
-            if os.system(f"rsync -v {src} {dst}") == 0:
+            command_str = f"rsync -auvP {src} {dst}"
+            logger.info(f"Calling rsync command: {command_str}")
+
+            if os.system(command_str) == 0:
                 self.anglerfish_samplesheet = dst
                 return True
             else:
