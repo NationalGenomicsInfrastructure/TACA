@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250429.1
+
+Misc. improvements to ONT processing.
+
 ## 20250422.1
 
 Fix bug with ONT instrument identification

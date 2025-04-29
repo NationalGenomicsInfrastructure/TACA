@@ -13,7 +13,7 @@ import pandas as pd
 
 from taca.utils.config import CONFIG
 from taca.utils.statusdb import NanoporeRunsConnection
-from taca.utils.transfer import RsyncAgent, RsyncError
+from taca.utils.transfer import RsyncError
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,64 @@ class ONT_run:
     """General Nanopore run.
 
     Expects instantiation from absolute path of run directory on preprocessing server.
+
+    Expects a config section with the following format
+
+    ...
+    nanopore_analysis:
+    run_types:
+        user_run:
+            data_dirs:
+                - /path/to/promethion
+                - /path/to/minion
+            ignore_dirs:
+                - "nosync"
+                - "qc"
+            instruments:
+                promethion:
+                    transfer_log: /path/to/transfer_promethion.tsv
+                    archive_dir: /path/to/promethion/nosync
+                    metadata_dir: /path/to/promethion_metadata
+                    destination: /server_path/to/promethion/
+                minion:
+                    transfer_log: /path/to/transfer_minion.tsv
+                    archive_dir: /path/to/minion/nosync
+                    metadata_dir: /path/to/minion_data
+                    destination: /server_path/to/minion/
+        qc_run:
+            data_dirs:
+                - /path/to/minion/qc
+            ignore_dirs:
+                - "nosync"
+            instruments:
+                minion:
+                    transfer_log: /path/to/transfer_minion_qc.tsv
+                    archive_dir: /path/to/minion/qc/nosync
+                    metadata_dir: /path/to/minion_data/qc
+                    destination: /server_path_to/minion/qc/
+            anglerfish:
+                anglerfish_samplesheets_dir: /path/to/samplesheets/anglerfish
+                anglerfish_path: ~/miniconda3/envs/anglerfish/bin/anglerfish
+    minknow_reports_dir: user@webserver.domain.se:/path/to/minknow_reports/
+    toulligqc_reports_dir: user@webserver.domain.se:/path/to/other_reports/toulligqc_reports
+    toulligqc_executable: ~/miniconda3/envs/taca/bin/toulligqc
+    transfer_details:
+        owner: ":owner"
+        permissions: "Dg+s,g+rw"
+        user: "user"
+        host: my.host.here.se
+    ...
+
+
     """
 
-    def __init__(self, run_abspath: str):
-        # Get paths and names of MinKNOW experiment, sample and run
-        self.run_name = os.path.basename(run_abspath)
+    def __init__(self, run_abspath: str, run_type: str | None = None):
+        # Parse args
         self.run_abspath = run_abspath
+        self.run_type = run_type
 
-        self.run_type: str | None = (
-            None  # This will be defined upon instantiation of a child class
-        )
-
+        # Parse run name
+        self.run_name = os.path.basename(run_abspath)
         assert re.match(ONT_RUN_PATTERN, self.run_name), (
             f"Run {self.run_name} doesn't look like a run dir"
         )
@@ -59,22 +106,30 @@ class ONT_run:
         # - For MinION, the position will be the instrument ID e.g. "MN19414".
         self.instrument = "promethion" if len(self.position) == 2 else "minion"
 
-        # Get attributes from config
+        # Get general attributes from config
+        self.transfer_details = CONFIG["nanopore_analysis"]["transfer_details"]
         self.minknow_reports_dir = CONFIG["nanopore_analysis"]["minknow_reports_dir"]
         self.toulligqc_reports_dir = CONFIG["nanopore_analysis"][
             "toulligqc_reports_dir"
         ]
         self.toulligqc_executable = CONFIG["nanopore_analysis"]["toulligqc_executable"]
-        self.analysis_server = CONFIG["nanopore_analysis"].get("analysis_server", None)
-        self.rsync_options = CONFIG["nanopore_analysis"]["rsync_options"]
-        for k, v in self.rsync_options.items():
-            if v == "None":
-                self.rsync_options[k] = None
+
+        # Get run-type and instrument-specific attributes from config
+        if self.run_type:
+            _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type][
+                "instruments"
+            ][self.instrument]
+            self.transfer_log = _conf["transfer_log"]
+            self.archive_dir = _conf["archive_dir"]
+            self.metadata_dir = _conf["metadata_dir"]
+            self.destination = _conf["destination"]
 
         # Get DB
         self.db = NanoporeRunsConnection(CONFIG["statusdb"], dbname="nanopore_runs")
 
-    # Looking for files within the run dir
+        # Define paths of rsync indicator files
+        self.transfer_indicator = os.path.join(self.run_abspath, ".rsync_ongoing")
+        self.rsync_exit_file = os.path.join(self.run_abspath, ".rsync_exit_status")
 
     def has_file(self, content_pattern: str) -> bool:
         """Checks within run dir for pattern, e.g. '/report*.json', returns bool."""
@@ -98,8 +153,7 @@ class ONT_run:
         else:
             raise AssertionError(f"Found multiple instances of {query_path}")
 
-    # Evaluating run status
-
+    @property
     def is_synced(self) -> bool:
         return self.has_file("/.sync_finished")
 
@@ -151,8 +205,6 @@ class ONT_run:
             logger.info(
                 f"{self.run_name}: Successfully created database entry for ongoing run."
             )
-        else:
-            logger.info(f"{self.run_name}: Database entry already exists, skipping.")
 
     def update_db_entry(self, force_update=False):
         """Check run vs statusdb. Create or update run entry."""
@@ -301,10 +353,11 @@ class ONT_run:
         # Add the parsed data to the db update
         db_update.update(parsed_data)
 
-    # Transferring metadata
-
     def copy_metadata(self):
         """Copies run dir (excluding seq data) to metadata dir"""
+
+        src = self.run_abspath
+        dst = self.metadata_dir
 
         exclude_patterns = [
             # Main seq dirs
@@ -320,14 +373,22 @@ class ONT_run:
             "*.pod5*",
         ]
 
-        exclude_patterns_quoted = ["'" + pattern + "'" for pattern in exclude_patterns]
+        # Build the rsync command
+        command = [
+            "rsync",
+            "-auvP",  # Archive, update, verbose, progress
+        ]
+        for pattern in exclude_patterns:
+            command.append(f"--exclude={pattern}")
+        command.extend([src, dst])
+        logger.info(f"Calling rsync command: {' '.join(command)}")
 
-        src = self.run_abspath
-        dst = self.transfer_details["metadata_dir"]
-
-        os.system(
-            f"rsync -rv --exclude={{{','.join(exclude_patterns_quoted)}}} {src} {dst}"
-        )
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
+            raise RsyncError(
+                f"{self.run_name}: Error occurred when copying metadata from {src} to {dst}. {e}"
+            )
 
     def copy_html_report(self):
         logger.info(f"{self.run_name}: Transferring .html report to ngi-internal...")
@@ -338,17 +399,21 @@ class ONT_run:
             self.minknow_reports_dir,
             f"report_{self.run_name}.html",
         )
-        transfer_object = RsyncAgent(
-            src_path=report_src_path,
-            dest_path=report_dest_path,
-            validate=False,
-        )
+
+        command = [
+            "rsync",
+            "-auvP",
+            report_src_path,
+            report_dest_path,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
+
         try:
-            transfer_object.transfer()
-        except RsyncError:
-            msg = f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
-            logger.error(msg)
-            raise RsyncError(msg)
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
+            raise RsyncError(
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}. {e}"
+            )
 
     def toulligqc_report(self):
         """Generate a QC report for the run using ToulligQC and publish it to GenStat."""
@@ -439,59 +504,86 @@ class ONT_run:
         else:
             raise subprocess.CalledProcessError(process.returncode, command_list)
 
-        # Copy the report to GenStat
-
+        # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
         logger.info(
             f"{self.run_name}: Transferring ToulligQC report to ngi-internal..."
         )
-        # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
         report_src_path = self.get_file(f"/{report_dir_name}/report.html")
         report_dest_path = os.path.join(
             self.toulligqc_reports_dir,
             f"report_{self.run_name}.html",
         )
-        transfer_object = RsyncAgent(
-            src_path=report_src_path,
-            dest_path=report_dest_path,
-            validate=False,
-        )
+
+        command = [
+            "rsync",
+            "-auvP",
+            report_src_path,
+            report_dest_path,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
         try:
-            transfer_object.transfer()
-        except RsyncError:
-            msg = f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}."
-            logger.error(msg)
-            raise RsyncError(msg)
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
+            raise RsyncError(
+                f"{self.run_name}: An error occurred while attempting to transfer the report {report_src_path} to {report_dest_path}. {e}"
+            )
 
-    # Transfer run
-
-    def transfer_run(self):
+    def transfer(self):
         """Transfer dir to destination specified in config file via rsync"""
-        destination = self.transfer_details["destination"]
 
         logger.info(
-            f"{self.run_name}: Transferring to {self.analysis_server['host'] if self.analysis_server else destination}..."
+            f"{self.run_name}: Transferring to {self.transfer_details['host']}..."
         )
 
-        transfer_object = RsyncAgent(
-            self.run_abspath,
-            dest_path=destination,
-            remote_host=self.analysis_server["host"] if self.analysis_server else None,
-            remote_user=self.analysis_server["user"] if self.analysis_server else None,
-            validate=False,
-            opts=self.rsync_options,
+        command = (
+            "rsync"
+            + " -auvP"  # archive, update, verbose, progress
+            + f" --chown={self.transfer_details['owner']}"
+            + f" --chmod={self.transfer_details['permissions']}"
+            + f" {self.run_abspath}"
+            + f" {self.transfer_details['user']}@{self.transfer_details['host']}:{self.destination}"
+            + f"; echo $? > {os.path.join(self.run_abspath, '.rsync_exit_status')}"
         )
 
-        try:
-            transfer_object.transfer()
-        except RsyncError:
-            msg = f"{self.run_name}: An error occurred while transferring to the analysis server."
-            logger.error(msg)
-            raise RsyncError(msg)
+        p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        """The PID of p_handle will map to a background subshell
+        calling bash to run the command. The rsync process itself
+        will be a child process of that subshell.
+
+        'ps -ef | grep <pid>' will show both the invoked subprocess
+        and its children.
+        """
+        logger.info(
+            "Transfer to analysis cluster "
+            f"started for run {self.run_name} on {datetime.now()} "
+            f"with PID {p_handle.pid} and command '{p_handle.args}'."
+        )
+        self._make_transfer_indicator(str(p_handle.pid))
+
+    def _make_transfer_indicator(self, contents: str = ""):
+        with open(self.transfer_indicator, "w") as f:
+            f.write(contents)
+
+    @property
+    def rsync_pid(self) -> str | None:
+        if not os.path.exists(self.transfer_indicator):
+            return None
+
+        with open(self.transfer_indicator) as f:
+            contents = f.read()
+
+        if contents == "":
+            return None
+
+        assert contents.isdigit()
+        return contents
+
+    def remove_transfer_indicator(self):
+        os.remove(self.transfer_indicator)
 
     def update_transfer_log(self):
-        """Update transfer log with run id and date."""
         try:
-            with open(self.transfer_details["transfer_log"], "a") as f:
+            with open(self.transfer_log, "a") as f:
                 tsv_writer = csv.writer(f, delimiter="\t")
                 tsv_writer.writerow([self.run_name, str(datetime.now())])
         except OSError:
@@ -499,13 +591,51 @@ class ONT_run:
             logger.error(msg)
             raise OSError(msg)
 
-    # Archive run
+    @property
+    def transfer_status(self):
+        if self.in_transfer_log:
+            return "transferred"
+        elif self.rsync_complete:
+            if self.rsync_successful:
+                return "rsync done"
+            else:
+                return "rsync failed"
+        elif self.transfer_ongoing:
+            return "ongoing"
+        else:
+            return "not started"
+
+    @property
+    def in_transfer_log(self):
+        with open(self.transfer_log) as transfer_log:
+            for row in transfer_log.readlines():
+                if row.startswith(self.run_name):
+                    return True
+        return False
+
+    @property
+    def transfer_ongoing(self):
+        return os.path.isfile(self.transfer_indicator)
+
+    @property
+    def rsync_complete(self):
+        return os.path.isfile(self.rsync_exit_file)
+
+    @property
+    def rsync_successful(self):
+        with open(self.rsync_exit_file) as rsync_exit_file:
+            rsync_exit_status = rsync_exit_file.readlines()
+        if rsync_exit_status[0].strip() == "0":
+            return True
+        else:
+            return False
 
     def archive_run(self):
         """Move directory to nosync."""
         src = self.run_abspath
         dst = os.path.join(self.run_abspath, os.pardir, "nosync")
 
+        logging.info(f"{self.run_name}: Moving run from {src} to {dst}...")
         shutil.move(src, dst)
 
 
@@ -513,27 +643,14 @@ class ONT_user_run(ONT_run):
     """ONT user run, has class methods and attributes specific to user runs."""
 
     def __init__(self, run_abspath: str):
-        super().__init__(run_abspath)
-        self.run_type = "user_run"
-        self.transfer_details = CONFIG["nanopore_analysis"]["run_types"][self.run_type][
-            "instruments"
-        ][self.instrument]
-
-    def is_transferred(self) -> bool:
-        """Return True if run ID in transfer.tsv, else False."""
-        with open(self.transfer_details["transfer_log"]) as f:
-            return self.run_name in f.read()
+        super().__init__(run_abspath, run_type="user_run")
 
 
 class ONT_qc_run(ONT_run):
     """ONT QC run, has class methods and attributes specific to QC runs"""
 
     def __init__(self, run_abspath: str):
-        super().__init__(run_abspath)
-        self.run_type = "qc_run"
-        self.transfer_details = CONFIG["nanopore_analysis"]["run_types"][self.run_type][
-            "instruments"
-        ][self.instrument]
+        super().__init__(run_abspath, run_type="qc_run")
 
         # Get Anglerfish attributes from run
         self.anglerfish_done_abspath = f"{self.run_abspath}/.anglerfish_done"
@@ -548,13 +665,6 @@ class ONT_qc_run(ONT_run):
             "anglerfish_samplesheets_dir"
         ]
         self.anglerfish_path = self.anglerfish_config["anglerfish_path"]
-
-    def is_transferred(self) -> bool:
-        """Return True if run ID in transfer.tsv, else False."""
-        with open(self.transfer_details["transfer_log"]) as f:
-            return self.run_name in f.read()
-
-    # QC methods
 
     def get_anglerfish_exit_code(self) -> Union[int, None]:
         """Check whether Anglerfish has finished.
@@ -596,22 +706,30 @@ class ONT_qc_run(ONT_run):
         if len(glob_results) == 0:
             return False
 
-        else:
-            # Sort by ascending date
-            glob_results.sort()
+        # Sort by ascending date
+        glob_results.sort()
 
-            # Grab abspath of latest samplesheet
-            src = glob_results[-1]
-            dst = os.path.join(self.run_abspath, os.path.basename(src))
+        # Grab abspath of latest samplesheet
+        src = glob_results[-1]
+        dst = os.path.join(self.run_abspath, os.path.basename(src))
 
-            # Copy into run directory
-            if os.system(f"rsync -v {src} {dst}") == 0:
-                self.anglerfish_samplesheet = dst
-                return True
-            else:
-                raise RsyncError(
-                    f"{self.run_name}: Error occurred when copying anglerfish samplesheet to run dir."
-                )
+        # Copy into run directory
+        command = [
+            "rsync",
+            "-auvP",
+            src,
+            dst,
+        ]
+        logger.info(f"Calling rsync command: {' '.join(command)}")
+
+        try:
+            subprocess.run(command, check=True)
+            self.anglerfish_samplesheet = dst
+            return True
+        except subprocess.CalledProcessError as e:
+            raise RsyncError(
+                f"{self.run_name}: Error occurred when copying anglerfish samplesheet to run dir. {e}"
+            )
 
     def has_fastq_output(self) -> bool:
         """Check whether run has fastq output."""
