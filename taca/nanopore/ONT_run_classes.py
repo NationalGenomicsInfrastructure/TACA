@@ -77,11 +77,13 @@ class ONT_run:
 
     """
 
-    def __init__(self, run_abspath: str):
-        # Get paths and names of MinKNOW experiment, sample and run
-        self.run_name = os.path.basename(run_abspath)
+    def __init__(self, run_abspath: str, run_type: str | None = None):
+        # Parse args
         self.run_abspath = run_abspath
+        self.run_type = run_type
 
+        # Parse run name
+        self.run_name = os.path.basename(run_abspath)
         assert re.match(ONT_RUN_PATTERN, self.run_name), (
             f"Run {self.run_name} doesn't look like a run dir"
         )
@@ -113,13 +115,14 @@ class ONT_run:
         self.toulligqc_executable = CONFIG["nanopore_analysis"]["toulligqc_executable"]
 
         # Get run-type and instrument-specific attributes from config
-        _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type]["instruments"][
-            self.instrument
-        ]
-        self.transfer_log = _conf["transfer_log"]
-        self.archive_dir = _conf["archive_dir"]
-        self.metadata_dir = _conf["metadata_dir"]
-        self.destination = _conf["destination"]
+        if self.run_type:
+            _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type][
+                "instruments"
+            ][self.instrument]
+            self.transfer_log = _conf["transfer_log"]
+            self.archive_dir = _conf["archive_dir"]
+            self.metadata_dir = _conf["metadata_dir"]
+            self.destination = _conf["destination"]
 
         # Get DB
         self.db = NanoporeRunsConnection(CONFIG["statusdb"], dbname="nanopore_runs")
@@ -640,16 +643,14 @@ class ONT_user_run(ONT_run):
     """ONT user run, has class methods and attributes specific to user runs."""
 
     def __init__(self, run_abspath: str):
-        self.run_type = "user_run"
-        super().__init__(run_abspath)
+        super().__init__(run_abspath, run_type="user_run")
 
 
 class ONT_qc_run(ONT_run):
     """ONT QC run, has class methods and attributes specific to QC runs"""
 
     def __init__(self, run_abspath: str):
-        self.run_type = "qc_run"
-        super().__init__(run_abspath)
+        super().__init__(run_abspath, run_type="qc_run")
 
         # Get Anglerfish attributes from run
         self.anglerfish_done_abspath = f"{self.run_abspath}/.anglerfish_done"
