@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250429.1
+
+Misc. improvements to ONT processing.
+
 ## 20250407.1
 
 Adhere to function return format for error cases
