@@ -108,13 +108,22 @@ class ONT_run:
         # - For MinION, the position will be the instrument ID e.g. "MN19414".
         self.instrument = "promethion" if len(self.position) == 2 else "minion"
 
-        # Get attributes from config
+        # Get general attributes from config
         self.transfer_details = CONFIG["nanopore_analysis"]["transfer_details"]
         self.minknow_reports_dir = CONFIG["nanopore_analysis"]["minknow_reports_dir"]
         self.toulligqc_reports_dir = CONFIG["nanopore_analysis"][
             "toulligqc_reports_dir"
         ]
         self.toulligqc_executable = CONFIG["nanopore_analysis"]["toulligqc_executable"]
+
+        # Get run-type and instrument-specific attributes from config
+        _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type]["instruments"][
+            self.instrument
+        ]
+        self.transfer_log = _conf["transfer_log"]
+        self.archive_dir = _conf["archive_dir"]
+        self.metadata_dir = _conf["metadata_dir"]
+        self.destination = _conf["destination"]
 
         # Get DB
         self.db = NanoporeRunsConnection(CONFIG["statusdb"], dbname="nanopore_runs")
@@ -557,7 +566,7 @@ class ONT_run:
             f.write(contents)
 
     @property
-    def rsync_pid(self) -> str:
+    def rsync_pid(self) -> str | None:
         if not os.path.exists(self.transfer_indicator):
             return None
 
@@ -574,7 +583,6 @@ class ONT_run:
         os.remove(self.transfer_indicator)
 
     def update_transfer_log(self):
-        """Update transfer log with run id and date."""
         try:
             with open(self.transfer_log, "a") as f:
                 tsv_writer = csv.writer(f, delimiter="\t")
@@ -636,33 +644,16 @@ class ONT_user_run(ONT_run):
     """ONT user run, has class methods and attributes specific to user runs."""
 
     def __init__(self, run_abspath: str):
-        super().__init__(run_abspath)
         self.run_type = "user_run"
-        _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type]["instruments"][
-            self.instrument
-        ]
-        self.transfer_log = _conf["transfer_log"]
-        self.archive_dir = _conf["archive_dir"]
-        self.metadata_dir = _conf["metadata_dir"]
-        self.destination = _conf["destination"]
-
-    def is_transferred(self) -> bool:
-        """Return True if run ID in transfer.tsv, else False."""
-        with open(self.transfer_log) as f:
-            return self.run_name in f.read()
+        super().__init__(run_abspath)
 
 
 class ONT_qc_run(ONT_run):
     """ONT QC run, has class methods and attributes specific to QC runs"""
 
     def __init__(self, run_abspath: str):
-        super().__init__(run_abspath)
         self.run_type = "qc_run"
-        conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type][self.instrument]
-        self.transfer_log = conf["transfer_log"]
-        self.archive_dir = conf["archive_dir"]
-        self.metadata_dir = conf["metadata_dir"]
-        self.destination = conf["destination"]
+        super().__init__(run_abspath)
 
         # Get Anglerfish attributes from run
         self.anglerfish_done_abspath = f"{self.run_abspath}/.anglerfish_done"
