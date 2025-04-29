@@ -4,6 +4,10 @@
 
 Misc. improvements to ONT processing.
 
+## 20250422.1
+
+Fix bug with ONT instrument identification
+
 ## 20250407.1
 
 Adhere to function return format for error cases
