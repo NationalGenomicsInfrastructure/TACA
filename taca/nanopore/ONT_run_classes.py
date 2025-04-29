@@ -82,10 +82,6 @@ class ONT_run:
         self.run_name = os.path.basename(run_abspath)
         self.run_abspath = run_abspath
 
-        self.run_type: str | None = (
-            None  # This will be defined upon instantiation of a child class
-        )
-
         assert re.match(ONT_RUN_PATTERN, self.run_name), (
             f"Run {self.run_name} doesn't look like a run dir"
         )
