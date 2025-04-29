@@ -52,10 +52,11 @@ nanopore_analysis:
     minknow_reports_dir: {tmp.name}/ngi-internal/minknow_reports/
     toulligqc_reports_dir: {tmp.name}/ngi-internal/other_reports/toulligqc_reports/
     toulligqc_executable: toulligqc
-    rsync_options:
-        '-Lav': None
-        '-r': None
-        '--exclude': ['work']"""
+    transfer_details:
+        owner: ":owner"
+        permissions: "Dg+s,g+rw"
+        user: "user"
+        host: server.domain.se"""
 
     test_config_yaml = yaml.safe_load(test_config_yaml_string)
 
