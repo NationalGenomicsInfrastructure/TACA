@@ -27,21 +27,24 @@ def main(args):
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-
-    logging.info("Starting script...")
-
     rsync_log = os.path.join(args.source_dir, "rsync_log.txt")
 
-    logging.info("Parsing instrument position logs...")
-    position_logs = parse_position_logs(args.minknow_logs_dir)
-    logging.info("Subsetting QC and MUX metrics...")
-    pore_counts = get_pore_counts(position_logs)
+    logging.info(f"Starting script version {__version__}.")
 
-    handle_runs(pore_counts, args, rsync_log)
+    run_paths = find_runs()
+
+    if run_paths:
+        logging.info("Parsing instrument position logs...")
+        position_logs = parse_position_logs(args.minknow_logs_dir)
+        logging.info("Subsetting QC and MUX metrics...")
+        pore_counts = get_pore_counts(position_logs)
+
+        handle_runs(run_paths, pore_counts, args, rsync_log)
+
     delete_archived_runs(args)
 
 
-def handle_runs(pore_counts, args, rsync_log):
+def find_runs():
     logging.info("Finding runs...")
     # Look for dirs matching run pattern 3 levels deep from source, excluding certain dirs
     exclude_dirs = ["nosync", "keep_data", "cg_data"]
@@ -52,7 +55,10 @@ def handle_runs(pore_counts, args, rsync_log):
         and path.split(os.sep)[-3] not in exclude_dirs
     ]
     logging.info(f"Found {len(run_paths)} runs...")
+    return run_paths
 
+
+def handle_runs(run_paths, pore_counts, args, rsync_log):
     # Iterate over runs
     for run_path in run_paths:
         logging.info(f"Handling {run_path}...")
@@ -81,7 +87,7 @@ def delete_archived_runs(args):
     # Look for dirs matching run pattern inside archive dir
     run_paths = [
         path
-        for path in glob(os.path.join(args.archive_dir, "*", "*", "*"), recursive=True)
+        for path in glob(os.path.join(args.archive_dir, "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} locally archived runs...")
@@ -105,21 +111,6 @@ def delete_archived_runs(args):
                 f"Locally archived run {run_path} was not found in the preproc archive. Skipping..."
             )
             continue
-
-    # Remove empty dirs
-    sample_dirs = set([os.path.dirname(run_path) for run_path in run_paths])
-    experiment_dirs = set([os.path.dirname(sample_dir) for sample_dir in sample_dirs])
-
-    for sample_dir in sample_dirs:
-        if not os.listdir(sample_dir):
-            logging.info(f"Removing empty dir '{sample_dir}'.")
-            os.rmdir(sample_dir)
-
-    # Remove empty experiment dirs
-    for experiment_dir in experiment_dirs:
-        if not os.listdir(experiment_dir):
-            logging.info(f"Removing empty dir '{experiment_dir}'.")
-            os.rmdir(experiment_dir)
 
 
 def sequencing_finished(run_path: str) -> bool:
@@ -207,44 +198,9 @@ def archive_finished_run(run_dir: str, archive_dir: str):
 
     logging.info(f"Archiving {run_dir}.")
 
-    sample_dir = os.path.dirname(run_dir)
-    exp_dir = os.path.dirname(sample_dir)
-
-    os.path.basename(run_dir)
-    sample_name = os.path.basename(sample_dir)
-    exp_name = os.path.basename(exp_dir)
-
-    # Create archive experiment group dir, if none
-    if not os.path.exists(os.path.join(archive_dir, exp_name)):
-        logging.info(f"Creating {os.path.join(archive_dir, exp_name)}.")
-        os.mkdir(os.path.join(archive_dir, exp_name))
-    # Create archive sample dir, if none
-    if not os.path.exists(os.path.join(archive_dir, exp_name, sample_name)):
-        logging.info(f"Creating {os.path.join(archive_dir, exp_name, sample_name)}.")
-        os.mkdir(os.path.join(archive_dir, exp_name, sample_name))
-
     # Archive run
-    logging.info(
-        f"Archiving {run_dir} to {os.path.join(archive_dir, exp_name, sample_name)}."
-    )
-    shutil.move(run_dir, os.path.join(archive_dir, exp_name, sample_name))
-
-    # Remove sample dir, if empty
-    if not os.listdir(sample_dir):
-        logging.info(f"Sample folder {sample_dir} is empty. Removing it.")
-        os.rmdir(sample_dir)
-    else:
-        logging.info(
-            f"Sample folder {sample_dir} is not empty ({os.listdir(sample_dir)}), leaving it."
-        )
-    # Remove experiment group dir, if empty
-    if not os.listdir(exp_dir):
-        logging.info(f"Experiment group folder {exp_dir} is empty. Removing it.")
-        os.rmdir(exp_dir)
-    else:
-        logging.info(
-            f"Experiment group folder {exp_dir} is not empty ({os.listdir(exp_dir)}), leaving it."
-        )
+    logging.info(f"Archiving {run_dir} to {archive_dir}.")
+    shutil.move(run_dir, archive_dir)
 
 
 def parse_position_logs(minknow_logs_dir: str) -> list:
