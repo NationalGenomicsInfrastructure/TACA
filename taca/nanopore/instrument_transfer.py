@@ -1,6 +1,6 @@
 """This is a stand-alone script run on ONT instrument computers. It transfers new ONT runs to NAS using rsync."""
 
-__version__ = "1.0.14"
+__version__ = "1.0.15"
 
 import argparse
 import logging
@@ -158,7 +158,7 @@ def sync_to_storage(run_dir: str, destination: str, rsync_log: str):
     command = [
         "run-one",
         "rsync",
-        "-rvu",
+        "-auv",
         "--log-file=" + rsync_log,
         run_dir,
         destination,
@@ -181,7 +181,7 @@ def final_sync_to_storage(
     command = [
         "run-one",
         "rsync",
-        "-rvu",
+        "-auv",
         "--log-file=" + rsync_log,
         run_dir,
         destination,
