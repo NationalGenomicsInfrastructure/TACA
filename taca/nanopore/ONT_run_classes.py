@@ -376,7 +376,7 @@ class ONT_run:
         # Build the rsync command
         command = [
             "rsync",
-            "-auvP",  # Archive, update, verbose, progress
+            "-aq",  # Archive, quiet
         ]
         for pattern in exclude_patterns:
             command.append(f"--exclude={pattern}")
@@ -402,7 +402,7 @@ class ONT_run:
 
         command = [
             "rsync",
-            "-auvP",
+            "-aq",
             report_src_path,
             report_dest_path,
         ]
@@ -516,7 +516,7 @@ class ONT_run:
 
         command = [
             "rsync",
-            "-auvP",
+            "-aq",
             report_src_path,
             report_dest_path,
         ]
@@ -537,7 +537,8 @@ class ONT_run:
 
         command = (
             "rsync"
-            + " -auvP"  # archive, update, verbose, progress
+            + " -aq"  # archive, quiet
+            + " --size-only"  # Only transfer files that are different sizes, prevents overwriting other syncs
             + f" --chown={self.transfer_details['owner']}"
             + f" --chmod={self.transfer_details['permissions']}"
             + f" {self.run_abspath}"
@@ -716,7 +717,7 @@ class ONT_qc_run(ONT_run):
         # Copy into run directory
         command = [
             "rsync",
-            "-auvP",
+            "-au",
             src,
             dst,
         ]
