@@ -33,7 +33,7 @@ def main(args):
     # Start script
     logging.info(f"Starting script version {__version__}.")
 
-    run_paths = find_runs(dir_to_search=args.prom_runs)
+    run_paths = find_runs(dir_to_search=args.prom_runs, exclude_dirs=args.exclude_dirs)
     positions = sorted([os.path.basename(path).split("_")[2] for path in run_paths])
 
     if run_paths:
@@ -56,10 +56,9 @@ def main(args):
     delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
 
 
-def find_runs(dir_to_search):
+def find_runs(dir_to_search, exclude_dirs):
     logging.info("Finding runs...")
     # Look for dirs matching run pattern 3 levels deep from source, excluding certain dirs
-    exclude_dirs = ["nosync", "keep_data", "cg_data"]
     run_paths = [
         path
         for path in glob(os.path.join(dir_to_search, "*", "*", "*"), recursive=True)
@@ -379,17 +378,27 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--prom_runs",
         dest="prom_runs",
-        help="Full path to directory containing runs to be synced.",
+        help="Path to directory where ONT runs are created by the instrument.",
+    )
+    parser.add_argument(
+        "--exclude_dirs",
+        type=lambda s: s.split(","),
+        help="Comma-separated names of dirs inside prom_runs to exclude from the search.",
     )
     parser.add_argument(
         "--nas_runs",
         dest="nas_runs",
-        help="Full path to destination directory to sync default runs to.",
+        help="Path to NAS directory to sync ONT runs to.",
+    )
+    parser.add_argument(
+        "--miarka_runs",
+        dest="miarka_runs",
+        help="Path to Miarka directory to sync ONT runs to.",
     )
     parser.add_argument(
         "--prom_archive",
         dest="prom_archive",
-        help="Full path to directory containing runs to be synced.",
+        help="Path to local archive directory for ONT runs.",
     )
     parser.add_argument(
         "--minknow_logs",
