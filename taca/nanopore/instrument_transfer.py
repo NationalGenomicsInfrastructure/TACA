@@ -172,7 +172,8 @@ def sync_to_storage(
 
         p = subprocess.Popen(command)
         logging.info(
-            f"{os.path.basename(run_path)}: Initiated rsync to {remote_runs_dir} with PID {p.pid} and the following command: {command}"
+            f"{os.path.basename(run_path)}: Initiated rsync to {remote_runs_dir}"
+            + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
         )
 
 
