@@ -23,11 +23,11 @@ def main(args):
     Archives the run when the transfer is complete."""
 
     logging.basicConfig(
-        filename=args.log_path,
+        filename=args.log,
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    rsync_log = os.path.join(args.source_dir, "rsync_log.txt")
+    rsync_log = os.path.join(args.prom_runs, "rsync_log.txt")
 
     logging.info(f"Starting script version {__version__}.")
 
@@ -35,7 +35,7 @@ def main(args):
 
     if run_paths:
         logging.info("Parsing instrument position logs...")
-        position_logs = parse_position_logs(args.minknow_logs_dir)
+        position_logs = parse_position_logs(args.minknow_logs)
         logging.info("Subsetting QC and MUX metrics...")
         pore_counts = get_pore_counts(position_logs)
 
@@ -50,7 +50,7 @@ def find_runs():
     exclude_dirs = ["nosync", "keep_data", "cg_data"]
     run_paths = [
         path
-        for path in glob(os.path.join(args.source_dir, "*", "*", "*"), recursive=True)
+        for path in glob(os.path.join(args.prom_runs, "*", "*", "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
         and path.split(os.sep)[-3] not in exclude_dirs
     ]
@@ -67,7 +67,7 @@ def handle_runs(run_paths, pore_counts, args, rsync_log):
         sample_name = run_path.split(os.sep)[-2]
         if sample_name[0:3] == "QC_" or experiment_name[0:3] == "QC_":
             logging.info("Run categorized as QC.")
-            rsync_dest = args.dest_dir_qc
+            rsync_dest = args.nas_qc_runs
         else:
             rsync_dest = args.dest_dir
 
@@ -79,7 +79,7 @@ def handle_runs(run_paths, pore_counts, args, rsync_log):
         if not sequencing_finished(run_path):
             sync_to_storage(run_path, rsync_dest, rsync_log)
         else:
-            final_sync_to_storage(run_path, rsync_dest, args.archive_dir, rsync_log)
+            final_sync_to_storage(run_path, rsync_dest, args.prom_archive, rsync_log)
 
 
 def delete_archived_runs(args):
@@ -87,7 +87,7 @@ def delete_archived_runs(args):
     # Look for dirs matching run pattern inside archive dir
     run_paths = [
         path
-        for path in glob(os.path.join(args.archive_dir, "*"), recursive=True)
+        for path in glob(os.path.join(args.prom_archive, "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} locally archived runs...")
@@ -162,7 +162,7 @@ def sync_to_storage(run_dir: str, destination: str, rsync_log: str):
 
 
 def final_sync_to_storage(
-    run_dir: str, destination: str, archive_dir: str, rsync_log: str
+    run_dir: str, destination: str, prom_archive: str, rsync_log: str
 ):
     """Do a final sync of the run to storage, then archive it.
     Skip if rsync is already running on the run."""
@@ -185,7 +185,7 @@ def final_sync_to_storage(
         dest = os.path.join(destination, os.path.basename(run_dir))
         sync_finished_indicator_command = ["rsync", finished_indicator_path, dest]
         p = subprocess.run(sync_finished_indicator_command)
-        archive_finished_run(run_dir, archive_dir)
+        archive_finished_run(run_dir, prom_archive)
     else:
         logging.info(
             f"Previous rsync might be running still. Skipping {run_dir} for now."
@@ -193,17 +193,17 @@ def final_sync_to_storage(
         return
 
 
-def archive_finished_run(run_dir: str, archive_dir: str):
+def archive_finished_run(run_dir: str, prom_archive: str):
     """Move finished run to archive (nosync)."""
 
     logging.info(f"Archiving {run_dir}.")
 
     # Archive run
-    logging.info(f"Archiving {run_dir} to {archive_dir}.")
-    shutil.move(run_dir, archive_dir)
+    logging.info(f"Archiving {run_dir} to {prom_archive}.")
+    shutil.move(run_dir, prom_archive)
 
 
-def parse_position_logs(minknow_logs_dir: str) -> list:
+def parse_position_logs(minknow_logs: str) -> list:
     """Look through all position logs and boil down into a structured list of dicts
 
     Example output:
@@ -229,7 +229,7 @@ def parse_position_logs(minknow_logs_dir: str) -> list:
     header: dict | None = None
     for position in positions:
         log_files = glob(
-            os.path.join(minknow_logs_dir, position, "control_server_log-*.txt")
+            os.path.join(minknow_logs, position, "control_server_log-*.txt")
         )
 
         if log_files:
@@ -345,33 +345,33 @@ def dump_pore_count_history(run: str, pore_counts: list) -> str:
 if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--source",
-        dest="source_dir",
+        "--prom_runs",
+        dest="prom_runs",
         help="Full path to directory containing runs to be synced.",
     )
     parser.add_argument(
-        "--dest",
-        dest="dest_dir",
+        "--nas_runs_dir",
+        dest="nas_runs",
         help="Full path to destination directory to sync default runs to.",
     )
     parser.add_argument(
-        "--dest_qc",
-        dest="dest_dir_qc",
+        "--nas_qc_runs",
+        dest="nas_qc_runs",
         help="Full path to destination directory to sync QC runs to.",
     )
     parser.add_argument(
-        "--archive",
-        dest="archive_dir",
+        "--prom_archive",
+        dest="prom_archive",
         help="Full path to directory containing runs to be synced.",
     )
     parser.add_argument(
         "--minknow_logs",
-        dest="minknow_logs_dir",
+        dest="minknow_logs",
         help="Full path to the directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
-        dest="log_path",
+        dest="log",
         help="Full path to the script log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
