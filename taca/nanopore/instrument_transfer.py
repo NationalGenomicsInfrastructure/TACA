@@ -79,11 +79,11 @@ def handle_runs(
 ):
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"Handling {run_path}...")
+        logging.info(f"{os.path.basename(run_path)}: Processing run...")
 
-        logging.info("Dumping run path...")
+        logging.info(f"{os.path.basename(run_path)}: Dumping run path...")
         dump_path(run_path)
-        logging.info("Dumping QC and MUX history...")
+        logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
         dump_pore_count_history(run_path, pore_counts)
 
         if not sequencing_finished(run_path):
@@ -110,17 +110,17 @@ def delete_archived_runs(prom_archive, nas_runs):
     )
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"Handling locally archived run {run_path}...")
+        logging.info(f"{os.path.basename(run_path)}: Processing archived run...")
         run_name = os.path.basename(run_path)
 
         if run_name in preproc_archive_contents:
             logging.info(
-                f"Locally archived run {run_path} was found in the preproc archive. Deleting..."
+                f"{os.path.basename(run_path)}: Found in the preproc archive. Deleting..."
             )
             shutil.rmtree(run_path)
         else:
             logging.info(
-                f"Locally archived run {run_path} was not found in the preproc archive. Skipping..."
+                f"{os.path.basename(run_path)}: Not found in the preproc archive. Skipping..."
             )
             continue
 
@@ -155,7 +155,7 @@ def write_finished_indicator(run_path):
 
 
 def sync_to_storage(
-    run_dir: str, destination_nas: str, destination_miarka: str, rsync_log: str
+    run_path: str, destination_nas: str, destination_miarka: str, rsync_log: str
 ):
     """Sync the run to storage using rsync.
     Skip if rsync is already running on the run."""
@@ -166,18 +166,18 @@ def sync_to_storage(
             "rsync",
             "-auv",
             "--log-file=" + rsync_log,
-            run_dir,
+            run_path,
             remote_runs_dir,
         ]
 
         p = subprocess.Popen(command)
         logging.info(
-            f"Initiated rsync to {remote_runs_dir} with PID {p.pid} and the following command: {command}"
+            f"{os.path.basename(run_path)}: Initiated rsync to {remote_runs_dir} with PID {p.pid} and the following command: {command}"
         )
 
 
 def final_sync_to_storage(
-    run_dir: str,
+    run_path: str,
     destination_nas: str,
     destination_miarka: str,
     prom_archive: str,
@@ -186,7 +186,7 @@ def final_sync_to_storage(
     """Do a final sync of the run to storage, then archive it.
     Skip if rsync is already running on the run."""
 
-    logging.info(f"Performing a final sync of {run_dir} to storage")
+    logging.info(f"{os.path.basename(run_path)}: Performing a final sync to storage...")
 
     syncs_done = []
 
@@ -196,7 +196,7 @@ def final_sync_to_storage(
             "rsync",
             "-auv",
             "--log-file=" + rsync_log,
-            run_dir,
+            run_path,
             destination_nas,
         ]
 
@@ -207,16 +207,16 @@ def final_sync_to_storage(
         else:
             syncs_done.append(False)
             logging.info(
-                f"Previous rsync might be running still. Skipping {run_dir} for now."
+                f"{os.path.basename(run_path)}: Previous rsync might be running still. Skipping..."
             )
             return
 
     if all(syncs_done):
-        logging.info(f"{run_dir}: All rsyncs finished successfully, archiving...")
-        finished_indicator_path = write_finished_indicator(run_dir)
+        logging.info(f"{run_path}: All rsyncs finished successfully, archiving...")
+        finished_indicator_path = write_finished_indicator(run_path)
         for remote_runs_dir in [destination_nas, destination_miarka]:
             run_dir_dst = os.path.join(
-                remote_runs_dir, os.path.basename(run_dir), os.path.sep
+                remote_runs_dir, os.path.basename(run_path), os.path.sep
             )
             sync_finished_indicator_command = [
                 "rsync",
@@ -225,19 +225,18 @@ def final_sync_to_storage(
             ]
             p = subprocess.run(sync_finished_indicator_command)
             if p.returncode != 0:
-                logging.error(f"Failed to sync finished indicator to {run_dir_dst}")
+                logging.error(
+                    f"{os.path.basename(run_path)}: Failed to sync finished indicator to {run_dir_dst}"
+                )
 
-        archive_finished_run(run_dir, prom_archive)
+        archive_finished_run(run_path, prom_archive)
 
 
-def archive_finished_run(run_dir: str, prom_archive: str):
+def archive_finished_run(run_path: str, prom_archive: str):
     """Move finished run to archive (nosync)."""
 
-    logging.info(f"Archiving {run_dir}.")
-
-    # Archive run
-    logging.info(f"Archiving {run_dir} to {prom_archive}.")
-    shutil.move(run_dir, prom_archive)
+    logging.info(f"{os.path.basename(run_path)}: Archiving to {prom_archive}.")
+    shutil.move(run_path, prom_archive)
 
 
 def parse_position_logs(minknow_logs: str, positions) -> list:
