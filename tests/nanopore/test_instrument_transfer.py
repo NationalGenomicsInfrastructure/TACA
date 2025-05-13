@@ -251,7 +251,7 @@ def test_final_sync_to_storage(
 
     instrument_transfer.final_sync_to_storage(
         run_dir="run_dir",
-        destination="destination",
+        destination_nas="destination",
         archive_dir="archive_dir",
         rsync_log="log_path",
     )
@@ -278,7 +278,7 @@ def test_final_sync_to_storage(
 
     instrument_transfer.final_sync_to_storage(
         run_dir="run_dir",
-        destination="destination",
+        destination_nas="destination",
         archive_dir="archive_dir",
         rsync_log="log_path",
     )
