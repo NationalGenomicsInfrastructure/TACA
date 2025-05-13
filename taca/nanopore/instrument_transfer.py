@@ -22,14 +22,6 @@ def main(args):
     """Find ONT runs and transfer them to storage.
     Archives the run when the transfer is complete."""
 
-    # Set up logging
-    logging.basicConfig(
-        filename=args.log,
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    rsync_log = os.path.join(args.prom_runs, "rsync_log.txt")
-
     # Start script
     logging.info(f"Starting script version {__version__}.")
 
@@ -50,7 +42,7 @@ def main(args):
             destination_nas=args.nas_runs,
             destination_miarka=args.miarka_runs,
             local_archive=args.prom_archive,
-            rsync_log=rsync_log,
+            rsync_log=args.rsync_log,
         )
 
     delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
@@ -374,6 +366,7 @@ def dump_pore_count_history(run: str, pore_counts: list) -> str:
 
 
 if __name__ == "__main__":  # pragma: no cover
+    # Parse args
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--prom_runs",
@@ -403,14 +396,34 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--minknow_logs",
         dest="minknow_logs",
-        help="Full path to the directory containing the MinKNOW position logs.",
+        help="Path to directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
         dest="log",
-        help="Full path to the script log file.",
+        help="Path to script log file.",
+    )
+    parser.add_argument(
+        "--rsync_log",
+        dest="rsync_log",
+        help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
+
+    # Set up logging
+    log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # File handler
+    file_handler = logging.FileHandler(args.log)
+    file_handler.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(console_handler)
 
     main(args)
