@@ -22,6 +22,7 @@ def main(args):
     """Find ONT runs and transfer them to storage.
     Archives the run when the transfer is complete."""
 
+    # Set up logging
     logging.basicConfig(
         filename=args.log,
         level=logging.INFO,
@@ -29,28 +30,38 @@ def main(args):
     )
     rsync_log = os.path.join(args.prom_runs, "rsync_log.txt")
 
+    # Start script
     logging.info(f"Starting script version {__version__}.")
 
-    run_paths = find_runs()
+    run_paths = find_runs(dir_to_search=args.prom_runs)
+    positions = sorted([os.path.basename(path).split("_")[2] for path in run_paths])
 
     if run_paths:
-        logging.info("Parsing instrument position logs...")
-        position_logs = parse_position_logs(args.minknow_logs)
+        logging.info(f"Parsing instrument logs for positions {positions}...")
+        position_logs = parse_position_logs(
+            minknow_logs=args.minknow_logs, positions=positions
+        )
         logging.info("Subsetting QC and MUX metrics...")
-        pore_counts = get_pore_counts(position_logs)
+        pore_counts = get_pore_counts(position_logs=position_logs)
 
-        handle_runs(run_paths, pore_counts, args, rsync_log)
+        handle_runs(
+            run_paths=run_paths,
+            pore_counts=pore_counts,
+            sync_destination=args.nas_runs,
+            local_archive=args.prom_archive,
+            rsync_log=rsync_log,
+        )
 
-    delete_archived_runs(args)
+    delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
 
 
-def find_runs():
+def find_runs(dir_to_search):
     logging.info("Finding runs...")
     # Look for dirs matching run pattern 3 levels deep from source, excluding certain dirs
     exclude_dirs = ["nosync", "keep_data", "cg_data"]
     run_paths = [
         path
-        for path in glob(os.path.join(args.prom_runs, "*", "*", "*"), recursive=True)
+        for path in glob(os.path.join(dir_to_search, "*", "*", "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
         and path.split(os.sep)[-3] not in exclude_dirs
     ]
@@ -58,18 +69,10 @@ def find_runs():
     return run_paths
 
 
-def handle_runs(run_paths, pore_counts, args, rsync_log):
+def handle_runs(run_paths, pore_counts, sync_destination, local_archive, rsync_log):
     # Iterate over runs
     for run_path in run_paths:
         logging.info(f"Handling {run_path}...")
-
-        experiment_name = run_path.split(os.sep)[-3]
-        sample_name = run_path.split(os.sep)[-2]
-        if sample_name[0:3] == "QC_" or experiment_name[0:3] == "QC_":
-            logging.info("Run categorized as QC.")
-            rsync_dest = args.nas_qc_runs
-        else:
-            rsync_dest = args.dest_dir
 
         logging.info("Dumping run path...")
         dump_path(run_path)
@@ -77,24 +80,24 @@ def handle_runs(run_paths, pore_counts, args, rsync_log):
         dump_pore_count_history(run_path, pore_counts)
 
         if not sequencing_finished(run_path):
-            sync_to_storage(run_path, rsync_dest, rsync_log)
+            sync_to_storage(run_path, sync_destination, rsync_log)
         else:
-            final_sync_to_storage(run_path, rsync_dest, args.prom_archive, rsync_log)
+            final_sync_to_storage(run_path, sync_destination, local_archive, rsync_log)
 
 
-def delete_archived_runs(args):
+def delete_archived_runs(prom_archive, nas_runs):
     logging.info("Finding locally archived runs...")
     # Look for dirs matching run pattern inside archive dir
     run_paths = [
         path
-        for path in glob(os.path.join(args.prom_archive, "*"), recursive=True)
+        for path in glob(os.path.join(prom_archive, "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} locally archived runs...")
 
     preproc_archive_contents = set(
-        os.listdir(os.path.join(args.dest_dir, "nosync"))
-        + os.listdir(os.path.join(args.dest_dir, "nosync", "archived"))
+        os.listdir(os.path.join(nas_runs, "nosync"))
+        + os.listdir(os.path.join(nas_runs, "nosync", "archived"))
     )
     # Iterate over runs
     for run_path in run_paths:
@@ -203,8 +206,8 @@ def archive_finished_run(run_dir: str, prom_archive: str):
     shutil.move(run_dir, prom_archive)
 
 
-def parse_position_logs(minknow_logs: str) -> list:
-    """Look through all position logs and boil down into a structured list of dicts
+def parse_position_logs(minknow_logs: str, positions) -> list:
+    """Look through position logs and boil down into a structured list of dicts
 
     Example output:
     [{
@@ -218,50 +221,44 @@ def parse_position_logs(minknow_logs: str) -> list:
 
     """
 
-    # MinION
-    positions = ["MN19414"]
-    # PromethION
-    for col in "123":
-        for row in "ABCDEFGH":
-            positions.append(col + row)
-
     headers = []
-    header: dict | None = None
+    header = None
     for position in positions:
         log_files = glob(
             os.path.join(minknow_logs, position, "control_server_log-*.txt")
         )
+        if not log_files:
+            logging.info(f"No log files found for {position}, continuing.")
+            continue
 
-        if log_files:
-            log_files.sort()
+        log_files.sort()
 
-            for log_file in log_files:
-                with open(log_file) as stream:
-                    lines = stream.readlines()
+        for log_file in log_files:
+            lines = open(log_file).readlines()
 
-                    # Iterate across log lines
-                    for line in lines:
-                        if not line[0:4] == "    ":
-                            # Line is log header
-                            split_header = line.split(" ")
-                            timestamp = " ".join(split_header[0:2])
-                            category = " ".join(split_header[2:])
+            # Iterate across log lines
+            for line in lines:
+                if not line[0:4] == "    ":
+                    # Line is log header
+                    split_header = line.split(" ")
+                    timestamp = " ".join(split_header[0:2])
+                    category = " ".join(split_header[2:])
 
-                            header = {
-                                "position": position,
-                                "timestamp": timestamp.strip(),
-                                "category": category.strip(),
-                            }
-                            headers.append(header)
+                    header = {
+                        "position": position,
+                        "timestamp": timestamp.strip(),
+                        "category": category.strip(),
+                    }
+                    headers.append(header)
 
-                        elif header:
-                            # Line is log body
-                            if "body" not in header.keys():
-                                body: dict = {}
-                                header["body"] = body
-                            key = line.split(": ")[0].strip()
-                            val = ": ".join(line.split(": ")[1:]).strip()
-                            header["body"][key] = val
+                elif header:
+                    # Line is log body
+                    if "body" not in header.keys():
+                        body: dict = {}
+                        header["body"] = body
+                    key = line.split(": ")[0].strip()
+                    val = ": ".join(line.split(": ")[1:]).strip()
+                    header["body"][key] = val
 
     headers.sort(key=lambda x: x["timestamp"])
     logging.info(f"Parsed {len(headers)} log entries.")
@@ -350,14 +347,9 @@ if __name__ == "__main__":  # pragma: no cover
         help="Full path to directory containing runs to be synced.",
     )
     parser.add_argument(
-        "--nas_runs_dir",
+        "--nas_runs",
         dest="nas_runs",
         help="Full path to destination directory to sync default runs to.",
-    )
-    parser.add_argument(
-        "--nas_qc_runs",
-        dest="nas_qc_runs",
-        help="Full path to destination directory to sync QC runs to.",
     )
     parser.add_argument(
         "--prom_archive",
