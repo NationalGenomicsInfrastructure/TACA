@@ -36,14 +36,7 @@ def main(args):
         logging.info("Subsetting QC and MUX metrics...")
         pore_counts = get_pore_counts(position_logs=position_logs)
 
-        handle_runs(
-            run_paths=run_paths,
-            pore_counts=pore_counts,
-            destination_nas=args.nas_runs,
-            destination_miarka=args.miarka_runs,
-            local_archive=args.prom_archive,
-            rsync_log=args.rsync_log,
-        )
+        handle_runs(run_paths=run_paths, pore_counts=pore_counts, args=args)
 
     delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
 
@@ -64,10 +57,7 @@ def find_runs(dir_to_search, exclude_dirs):
 def handle_runs(
     run_paths,
     pore_counts,
-    destination_nas,
-    destination_miarka,
-    local_archive,
-    rsync_log,
+    args,
 ):
     # Iterate over runs
     for run_path in run_paths:
@@ -79,11 +69,21 @@ def handle_runs(
         dump_pore_count_history(run_path, pore_counts)
 
         if not sequencing_finished(run_path):
-            sync_to_storage(run_path, destination_nas, destination_miarka, rsync_log)
-        else:
-            final_sync_to_storage(
-                run_path, destination_nas, destination_miarka, local_archive, rsync_log
+            sync_to_storage(
+                run_path=run_path,
+                destination=args.nas_runs,
+                rsync_log=args.rsync_log,
+                background=True,
             )
+            sync_to_storage(
+                run_path=run_path,
+                destination=args.miarka_runs,
+                rsync_log=args.rsync_log,
+                background=True,
+                settings=args.miarka_settings,
+            )
+        else:
+            final_sync_to_storage(run_path, args)
 
 
 def delete_archived_runs(prom_archive, nas_runs):
@@ -147,82 +147,93 @@ def write_finished_indicator(run_path):
 
 
 def sync_to_storage(
-    run_path: str, destination_nas: str, destination_miarka: str, rsync_log: str
+    run_path: str,
+    destination: str,
+    rsync_log: str,
+    background: bool,
+    settings: list = [],
 ):
     """Sync the run to storage using rsync.
     Skip if rsync is already running on the run."""
 
-    for remote_runs_dir in [destination_nas, destination_miarka]:
-        command = [
+    command = (
+        [
             "run-one",
             "rsync",
             "-auv",
             "--log-file=" + rsync_log,
-            run_path,
-            remote_runs_dir,
         ]
+        + settings
+        + [
+            run_path,
+            destination,
+        ]
+    )
 
+    if background:
         p = subprocess.Popen(command)
         logging.info(
-            f"{os.path.basename(run_path)}: Initiated rsync to {remote_runs_dir}"
+            f"{os.path.basename(run_path)}: Initiated rsync to {destination}"
             + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
         )
+    else:
+        p = subprocess.run(command)
+        if p.returncode == 0:
+            logging.info(
+                f"{os.path.basename(run_path)}: Rsync to {destination} finished successfully."
+            )
+            return True
+        else:
+            logging.error(
+                f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p.returncode}."
+            )
+            return False
 
 
 def final_sync_to_storage(
     run_path: str,
-    destination_nas: str,
-    destination_miarka: str,
-    prom_archive: str,
-    rsync_log: str,
+    args,
 ):
     """Do a final sync of the run to storage, then archive it.
     Skip if rsync is already running on the run."""
 
     logging.info(f"{os.path.basename(run_path)}: Performing a final sync to storage...")
 
-    syncs_done = []
+    if sync_to_storage(
+        run_path=run_path,
+        destination=args.nas_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+    ) and sync_to_storage(
+        run_path=run_path,
+        destination=args.miarka_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+        settings=args.miarka_settings,
+    ):
+        logging.info(
+            f"{run_path}: All rsyncs finished successfully, syncing finished indicator..."
+        )
 
-    for remote_runs_dir in [destination_nas, destination_miarka]:
-        command = [
-            "run-one",
-            "rsync",
-            "-auv",
-            "--log-file=" + rsync_log,
-            run_path,
-            destination_nas,
-        ]
+    write_finished_indicator(run_path)
 
-        p = subprocess.run(command)
-
-        if p.returncode == 0:
-            syncs_done.append(True)
-        else:
-            syncs_done.append(False)
-            logging.info(
-                f"{os.path.basename(run_path)}: Previous rsync might be running still. Skipping..."
-            )
-            return
-
-    if all(syncs_done):
-        logging.info(f"{run_path}: All rsyncs finished successfully, archiving...")
-        finished_indicator_path = write_finished_indicator(run_path)
-        for remote_runs_dir in [destination_nas, destination_miarka]:
-            run_dir_dst = os.path.join(
-                remote_runs_dir, os.path.basename(run_path), os.path.sep
-            )
-            sync_finished_indicator_command = [
-                "rsync",
-                finished_indicator_path,
-                run_dir_dst,
-            ]
-            p = subprocess.run(sync_finished_indicator_command)
-            if p.returncode != 0:
-                logging.error(
-                    f"{os.path.basename(run_path)}: Failed to sync finished indicator to {run_dir_dst}"
-                )
-
-        archive_finished_run(run_path, prom_archive)
+    if sync_to_storage(
+        run_path=run_path,
+        destination=args.nas_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+    ) and sync_to_storage(
+        run_path=run_path,
+        destination=args.miarka_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+        settings=args.miarka_settings,
+    ):
+        logging.info(
+            f"{run_path}: Indicator file finished successfully, archiving run..."
+        )
+        archive_finished_run(run_path, args.prom_archive)
+        logging.info(f"{run_path}: Finished archiving run.")
 
 
 def archive_finished_run(run_path: str, prom_archive: str):
@@ -370,7 +381,6 @@ if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--prom_runs",
-        dest="prom_runs",
         help="Path to directory where ONT runs are created by the instrument.",
     )
     parser.add_argument(
@@ -380,32 +390,31 @@ if __name__ == "__main__":  # pragma: no cover
     )
     parser.add_argument(
         "--nas_runs",
-        dest="nas_runs",
         help="Path to NAS directory to sync ONT runs to.",
     )
     parser.add_argument(
         "--miarka_runs",
-        dest="miarka_runs",
         help="Path to Miarka directory to sync ONT runs to.",
     )
     parser.add_argument(
+        "--miarka_settings",
+        type=lambda s: s.split(" "),
+        help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+    )
+    parser.add_argument(
         "--prom_archive",
-        dest="prom_archive",
         help="Path to local archive directory for ONT runs.",
     )
     parser.add_argument(
         "--minknow_logs",
-        dest="minknow_logs",
         help="Path to directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
-        dest="log",
         help="Path to script log file.",
     )
     parser.add_argument(
         "--rsync_log",
-        dest="rsync_log",
         help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
