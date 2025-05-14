@@ -83,7 +83,7 @@ def handle_runs(
                 settings=args.miarka_settings,
             )
         else:
-            final_sync_to_storage(run_path, args)
+            final_sync_and_archive(run_path, args)
 
 
 def delete_archived_runs(prom_archive, nas_runs):
@@ -160,7 +160,7 @@ def sync_to_storage(
         [
             "run-one",
             "rsync",
-            "-auv",
+            "-auq",
             "--log-file=" + rsync_log,
         ]
         + settings
@@ -190,12 +190,11 @@ def sync_to_storage(
             return False
 
 
-def final_sync_to_storage(
+def final_sync_and_archive(
     run_path: str,
     args,
 ):
-    """Do a final sync of the run to storage, then archive it.
-    Skip if rsync is already running on the run."""
+    """Do a final sync of the run to storage, then archive it."""
 
     logging.info(f"{os.path.basename(run_path)}: Performing a final sync to storage...")
 
@@ -214,7 +213,10 @@ def final_sync_to_storage(
         logging.info(
             f"{run_path}: All rsyncs finished successfully, syncing finished indicator..."
         )
+    else:
+        raise AssertionError(f"{run_path}: Rsync failed, aborting run archiving.")
 
+    logging.info(f"{run_path}: Creating and syncing indicator file.")
     write_finished_indicator(run_path)
 
     if sync_to_storage(
@@ -230,17 +232,40 @@ def final_sync_to_storage(
         settings=args.miarka_settings,
     ):
         logging.info(
-            f"{run_path}: Indicator file finished successfully, archiving run..."
+            f"{run_path}: Indicator file synced successfully, archiving run..."
         )
         archive_finished_run(run_path, args.prom_archive)
         logging.info(f"{run_path}: Finished archiving run.")
+    else:
+        raise AssertionError(f"{run_path}: Rsync failed, aborting run archiving.")
 
 
 def archive_finished_run(run_path: str, prom_archive: str):
     """Move finished run to archive (nosync)."""
 
+    sample_dir = os.path.dirname(run_path)
+    exp_dir = os.path.dirname(sample_dir)
+
     logging.info(f"{os.path.basename(run_path)}: Archiving to {prom_archive}.")
     shutil.move(run_path, prom_archive)
+    logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
+
+    # Remove sample dir, if empty
+    if not os.listdir(sample_dir):
+        logging.info(f"Sample folder {sample_dir} is empty. Removing it.")
+        os.rmdir(sample_dir)
+    else:
+        logging.info(
+            f"Sample folder {sample_dir} is not empty ({os.listdir(sample_dir)}), leaving it."
+        )
+    # Remove experiment group dir, if empty
+    if not os.listdir(exp_dir):
+        logging.info(f"Experiment group folder {exp_dir} is empty. Removing it.")
+        os.rmdir(exp_dir)
+    else:
+        logging.info(
+            f"Experiment group folder {exp_dir} is not empty ({os.listdir(exp_dir)}), leaving it."
+        )
 
 
 def parse_position_logs(minknow_logs: str, positions) -> list:

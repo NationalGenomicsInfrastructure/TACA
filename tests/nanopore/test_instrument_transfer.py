@@ -249,7 +249,7 @@ def test_final_sync_to_storage(
     # For finished run
     mock_run.return_value.returncode = 0
 
-    instrument_transfer.final_sync_to_storage(
+    instrument_transfer.final_sync_and_archive(
         run_path="run_dir",
         destination_nas="destination",
         archive_dir="archive_dir",
@@ -276,7 +276,7 @@ def test_final_sync_to_storage(
     # For not finished run
     mock_run.return_value.returncode = 1
 
-    instrument_transfer.final_sync_to_storage(
+    instrument_transfer.final_sync_and_archive(
         run_path="run_dir",
         destination_nas="destination",
         archive_dir="archive_dir",
