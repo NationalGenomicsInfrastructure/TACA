@@ -410,13 +410,31 @@ def dump_pore_count_history(run: str, pore_counts: list) -> str:
     return new_file_path
 
 
+def valid_dir(path):
+    """Validate that a path exists and is a directory."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"Directory doesn't exist: {path}")
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"Not a directory: {path}")
+    return os.path.abspath(path)
+
+
+def valid_file(path):
+    """Validate that a path exists and is a file."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"File doesn't exist: {path}")
+    if not os.path.isfile(path):
+        raise argparse.ArgumentTypeError(f"Not a file: {path}")
+    return os.path.abspath(path)
+
+
 if __name__ == "__main__":  # pragma: no cover
     # Parse args
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--prom_runs",
         required=True,
-        type=os.path.abspath,
+        type=valid_dir,
         help="Path to directory where ONT runs are created by the instrument.",
     )
     parser.add_argument(
@@ -428,7 +446,7 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--nas_runs",
         required=True,
-        type=os.path.abspath,
+        type=valid_dir,
         help="Path to NAS directory to sync ONT runs to.",
     )
     parser.add_argument(
@@ -446,25 +464,25 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--prom_archive",
         required=True,
-        type=os.path.abspath,
+        type=valid_dir,
         help="Path to local archive directory for ONT runs.",
     )
     parser.add_argument(
         "--minknow_logs",
         required=True,
-        type=os.path.abspath,
+        type=valid_dir,
         help="Path to directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
         required=True,
-        type=os.path.abspath,
+        type=valid_file,
         help="Path to script log file.",
     )
     parser.add_argument(
         "--rsync_log",
         required=True,
-        type=os.path.abspath,
+        type=valid_file,
         help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
