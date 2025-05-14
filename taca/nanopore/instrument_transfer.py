@@ -1,4 +1,9 @@
-"""This is a stand-alone script run on ONT instrument computers. It transfers new ONT runs to NAS using rsync."""
+#!/usr/bin/env python3
+
+"""This is a stand-alone script run on ONT instrument computers to handle ONT runs.
+It handles metadata file creation, syncing to storage, local archiving and cleanup.
+The script is written in pure Python to avoid installing external dependencies.
+"""
 
 __version__ = "1.0.15"
 
@@ -10,6 +15,7 @@ import shutil
 import subprocess
 from datetime import datetime as dt
 from glob import glob
+from pathlib import Path
 
 RUN_PATTERN = re.compile(
     # Run folder name expected as yyyymmdd_HHMM_positionOrInstrument_flowCellId_randomHash
@@ -114,7 +120,6 @@ def delete_archived_runs(prom_archive, nas_runs):
             logging.info(
                 f"{os.path.basename(run_path)}: Not found in the preproc archive. Skipping..."
             )
-            continue
 
 
 def sequencing_finished(run_path: str) -> bool:
@@ -139,10 +144,10 @@ def dump_path(run_path: str):
 
 def write_finished_indicator(run_path):
     """Write a hidden file to indicate
-    when the finial rsync is finished."""
+    when the final rsync is finished."""
     finished_indicator = ".sync_finished"
     new_file_path = os.path.join(run_path, finished_indicator)
-    open(new_file_path, "w").close()
+    Path(new_file_path).touch(exist_ok=True)
     return new_file_path
 
 
@@ -211,12 +216,14 @@ def final_sync_and_archive(
         settings=args.miarka_settings,
     ):
         logging.info(
-            f"{run_path}: All rsyncs finished successfully, syncing finished indicator..."
+            f"{os.path.basename(run_path)}: All rsyncs finished successfully, syncing finished indicator..."
         )
     else:
-        raise AssertionError(f"{run_path}: Rsync failed, aborting run archiving.")
+        raise AssertionError(
+            f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
+        )
 
-    logging.info(f"{run_path}: Creating and syncing indicator file.")
+    logging.info(f"{os.path.basename(run_path)}: Creating and syncing indicator file.")
     write_finished_indicator(run_path)
 
     if sync_to_storage(
@@ -232,12 +239,14 @@ def final_sync_and_archive(
         settings=args.miarka_settings,
     ):
         logging.info(
-            f"{run_path}: Indicator file synced successfully, archiving run..."
+            f"{os.path.basename(run_path)}: Indicator file synced successfully, archiving run..."
         )
         archive_finished_run(run_path, args.prom_archive)
-        logging.info(f"{run_path}: Finished archiving run.")
+        logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
     else:
-        raise AssertionError(f"{run_path}: Rsync failed, aborting run archiving.")
+        raise AssertionError(
+            f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
+        )
 
 
 def archive_finished_run(run_path: str, prom_archive: str):
@@ -296,7 +305,8 @@ def parse_position_logs(minknow_logs: str, positions) -> list:
         log_files.sort()
 
         for log_file in log_files:
-            lines = open(log_file).readlines()
+            with open(log_file) as f:
+                lines = f.readlines()
 
             # Iterate across log lines
             for line in lines:
@@ -334,24 +344,24 @@ def get_pore_counts(position_logs: list) -> list:
     pore_counts = []
     for entry in position_logs:
         if "INFO: platform_qc.report (user_messages)" in entry["category"]:
-            type = "qc"
+            entry_type = "qc"
         elif "INFO: mux_scan_result (user_messages)" in entry["category"]:
-            type = "mux"
+            entry_type = "mux"
         else:
-            type = "other"
+            entry_type = "other"
 
-        if type in ["qc", "mux"]:
+        if entry_type in ["qc", "mux"]:
             new_entry = {
                 "flow_cell_id": entry["body"]["flow_cell_id"],
                 "timestamp": entry["timestamp"],
                 "position": entry["position"],
-                "type": type,
+                "type": entry_type,
                 "num_pores": entry["body"]["num_pores"],
             }
 
             new_entry["total_pores"] = (
                 entry["body"]["num_pores"]
-                if type == "qc"
+                if entry_type == "qc"
                 else entry["body"]["total_pores"]
             )
 
@@ -395,8 +405,7 @@ def dump_pore_count_history(run: str, pore_counts: list) -> str:
                 f.write(",".join(row) + "\n")
     else:
         # Create an empty file if there is not one already
-        if not os.path.exists(new_file_path):
-            open(new_file_path, "w").close()
+        Path(new_file_path).touch(exist_ok=True)
 
     return new_file_path
 
@@ -406,40 +415,56 @@ if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--prom_runs",
+        required=True,
+        type=os.path.abspath,
         help="Path to directory where ONT runs are created by the instrument.",
     )
     parser.add_argument(
         "--exclude_dirs",
+        required=True,
         type=lambda s: s.split(","),
         help="Comma-separated names of dirs inside prom_runs to exclude from the search.",
     )
     parser.add_argument(
         "--nas_runs",
+        required=True,
+        type=os.path.abspath,
         help="Path to NAS directory to sync ONT runs to.",
     )
     parser.add_argument(
         "--miarka_runs",
+        required=True,
+        type=os.path.abspath,
         help="Path to Miarka directory to sync ONT runs to.",
     )
     parser.add_argument(
         "--miarka_settings",
+        required=True,
         type=lambda s: s.split(" "),
         help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
     )
     parser.add_argument(
         "--prom_archive",
+        required=True,
+        type=os.path.abspath,
         help="Path to local archive directory for ONT runs.",
     )
     parser.add_argument(
         "--minknow_logs",
+        required=True,
+        type=os.path.abspath,
         help="Path to directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
+        required=True,
+        type=os.path.abspath,
         help="Path to script log file.",
     )
     parser.add_argument(
         "--rsync_log",
+        required=True,
+        type=os.path.abspath,
         help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
