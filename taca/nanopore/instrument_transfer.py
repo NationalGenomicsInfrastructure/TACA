@@ -434,8 +434,8 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--miarka_runs",
         required=True,
-        type=os.path.abspath,
-        help="Path to Miarka directory to sync ONT runs to.",
+        type=str,  # Remote paths are not supported, use str
+        help="Remote path to Miarka directory to sync ONT runs to.",
     )
     parser.add_argument(
         "--miarka_settings",
