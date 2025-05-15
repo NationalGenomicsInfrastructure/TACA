@@ -32,23 +32,15 @@ def main(args):
     logging.info(f"Starting script version {__version__}.")
 
     run_paths = find_runs(dir_to_search=args.prom_runs, exclude_dirs=args.exclude_dirs)
-    positions = sorted([os.path.basename(path).split("_")[2] for path in run_paths])
 
     if run_paths:
-        logging.info(f"Parsing instrument logs for positions {positions}...")
-        position_logs = parse_position_logs(
-            minknow_logs=args.minknow_logs, positions=positions
-        )
-        logging.info("Subsetting QC and MUX metrics...")
-        pore_counts = get_pore_counts(position_logs=position_logs)
-
-        handle_runs(run_paths=run_paths, pore_counts=pore_counts, args=args)
+        handle_runs(run_paths=run_paths, args=args)
 
     delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
 
 
 def find_runs(dir_to_search, exclude_dirs):
-    logging.info("Finding runs...")
+    logging.info(f"Finding runs at {dir_to_search}, excluding {exclude_dirs}...")
     # Look for dirs matching run pattern 3 levels deep from source, excluding certain dirs
     run_paths = [
         path
@@ -62,15 +54,14 @@ def find_runs(dir_to_search, exclude_dirs):
 
 def handle_runs(
     run_paths,
-    pore_counts,
     args,
 ):
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"{os.path.basename(run_path)}: Processing run at '{run_path}'")
+        logging.info(f"Processing run at '{run_path}'")
 
         dump_path(run_path)
-        dump_pore_count_history(run_path, pore_counts)
+        dump_pore_count_history(run_path=run_path, minknow_logs=args.minknow_logs)
 
         if not sequencing_finished(run_path):
             sync_to_storage(
@@ -87,6 +78,7 @@ def handle_runs(
                 settings=args.miarka_settings,
             )
         else:
+            dump_size(run_path)
             final_sync_and_archive(run_path, args)
 
 
@@ -129,15 +121,27 @@ def sequencing_finished(run_path: str) -> bool:
     return False
 
 
+def dump_size(run_path: str):
+    new_file = os.path.join(run_path, "run_size.txt")
+    command = f"du -sh {run_path} | cut -f1 > {new_file}".split()
+    if not os.path.exists(new_file):
+        logging.info(f"{os.path.basename(run_path)}: Dumping run size...")
+        p = subprocess.run(command)
+        if p.returncode != 0:
+            raise AssertionError(
+                f"{os.path.basename(run_path)}: Failed to dump run size with error code {p.returncode}."
+            )
+
+
 def dump_path(run_path: str):
     """Dump path <minknow_experiment_id>/<minknow_sample_id>/<minknow_run_id>
     to a file. Used for transferring info on ongoing runs to StatusDB."""
-    new_file = os.path.join(run_path, "run_path.txt")
+    target_file = os.path.join(run_path, "run_path.txt")
     proj, sample, run = run_path.split(os.sep)[-3:]
     path_to_write = os.path.join(proj, sample, run)
-    if not os.path.exists(path_to_write):
+    if not os.path.exists(target_file):
         logging.info(f"{os.path.basename(run_path)}: Dumping run path...")
-        with open(new_file, "w") as f:
+        with open(target_file, "w") as f:
             f.write(path_to_write)
 
 
@@ -276,7 +280,7 @@ def archive_finished_run(run_path: str, prom_archive: str):
         )
 
 
-def parse_position_logs(minknow_logs: str, positions) -> list:
+def parse_position_logs(minknow_logs: str, position) -> list:
     """Look through position logs and boil down into a structured list of dicts
 
     Example output:
@@ -290,46 +294,42 @@ def parse_position_logs(minknow_logs: str, positions) -> list:
     } ... ]
 
     """
+    logging.info(f"Parsing instrument logs for position {position}...")
 
     headers = []
     header = None
-    for position in positions:
-        log_files = glob(
-            os.path.join(minknow_logs, position, "control_server_log-*.txt")
-        )
-        if not log_files:
-            logging.info(f"No log files found for {position}, continuing.")
-            continue
+    log_files = glob(os.path.join(minknow_logs, position, "control_server_log-*.txt"))
+    assert log_files, f"No log files found for position {position} in {minknow_logs}"
 
-        log_files.sort()
+    log_files.sort()
 
-        for log_file in log_files:
-            with open(log_file) as f:
-                lines = f.readlines()
+    for log_file in log_files:
+        with open(log_file) as f:
+            lines = f.readlines()
 
-            # Iterate across log lines
-            for line in lines:
-                if not line[0:4] == "    ":
-                    # Line is log header
-                    split_header = line.split(" ")
-                    timestamp = " ".join(split_header[0:2])
-                    category = " ".join(split_header[2:])
+        # Iterate across log lines
+        for line in lines:
+            if not line[0:4] == "    ":
+                # Line is log header
+                split_header = line.split(" ")
+                timestamp = " ".join(split_header[0:2])
+                category = " ".join(split_header[2:])
 
-                    header = {
-                        "position": position,
-                        "timestamp": timestamp.strip(),
-                        "category": category.strip(),
-                    }
-                    headers.append(header)
+                header = {
+                    "position": position,
+                    "timestamp": timestamp.strip(),
+                    "category": category.strip(),
+                }
+                headers.append(header)
 
-                elif header:
-                    # Line is log body
-                    if "body" not in header.keys():
-                        body: dict = {}
-                        header["body"] = body
-                    key = line.split(": ")[0].strip()
-                    val = ": ".join(line.split(": ")[1:]).strip()
-                    header["body"][key] = val
+            elif header:
+                # Line is log body
+                if "body" not in header.keys():
+                    body: dict = {}
+                    header["body"] = body
+                key = line.split(": ")[0].strip()
+                val = ": ".join(line.split(": ")[1:]).strip()
+                header["body"][key] = val
 
     headers.sort(key=lambda x: x["timestamp"])
     logging.info(f"Parsed {len(headers)} log entries.")
@@ -339,6 +339,8 @@ def parse_position_logs(minknow_logs: str, positions) -> list:
 
 def get_pore_counts(position_logs: list) -> list:
     """Take the flowcell log list output by parse_position_logs() and subset to contain only QC and MUX info."""
+
+    logging.info("Subsetting QC and MUX metrics from position logs...")
 
     pore_counts = []
     for entry in position_logs:
@@ -371,17 +373,23 @@ def get_pore_counts(position_logs: list) -> list:
     return pore_counts
 
 
-def dump_pore_count_history(run_path: str, pore_counts: list) -> str:
+def dump_pore_count_history(run_path: str, minknow_logs: str) -> str:
     """For a recently started run, dump all QC and MUX events that the instrument remembers
     for the flow cell as a file in the run dir."""
 
     flowcell_id = os.path.basename(run_path).split("_")[-2]
+    position = os.path.basename(run_path).split("_")[-3]
     run_start_time = dt.strptime(os.path.basename(run_path)[0:13], "%Y%m%d_%H%M")
     log_time_pattern = "%Y-%m-%d %H:%M:%S.%f"
 
-    new_file_path = os.path.join(run_path, "pore_count_history.csv")
+    target_file = os.path.join(run_path, "pore_count_history.csv")
 
-    if not os.path.exists(new_file_path):
+    if not os.path.exists(target_file):
+        position_logs = parse_position_logs(
+            minknow_logs=minknow_logs, position=position
+        )
+        pore_counts = get_pore_counts(position_logs=position_logs)
+
         logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
         flowcell_pore_counts = [
             log_entry
@@ -401,13 +409,16 @@ def dump_pore_count_history(run_path: str, pore_counts: list) -> str:
             header = flowcell_pore_counts_sorted[0].keys()
             rows = [e.values() for e in flowcell_pore_counts_sorted]
 
-            with open(new_file_path, "w") as f:
+            with open(target_file, "w") as f:
                 f.write(",".join(header) + "\n")
                 for row in rows:
                     f.write(",".join(row) + "\n")
         else:
             # Create an empty file if there is not one already
-            Path(new_file_path).touch()
+            logging.info(
+                f"{os.path.basename(run_path)}: No QC or MUX events found, creating empty file."
+            )
+            Path(target_file).touch()
 
 
 def valid_dir(path):
@@ -428,8 +439,7 @@ def valid_file(path):
     return os.path.abspath(path)
 
 
-if __name__ == "__main__":  # pragma: no cover
-    # Parse args
+def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--prom_runs",
@@ -486,15 +496,19 @@ if __name__ == "__main__":  # pragma: no cover
         help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
-    args = parser.parse_args()
 
+    args = parser.parse_args()
+    return args
+
+
+def setup_logging(log_file):
     # Set up logging
     log_format = "%(asctime)s - %(levelname)s - %(message)s"
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
 
     # File handler
-    file_handler = logging.FileHandler(args.log)
+    file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(logging.Formatter(log_format))
     root_logger.addHandler(file_handler)
 
@@ -503,4 +517,8 @@ if __name__ == "__main__":  # pragma: no cover
     console_handler.setFormatter(logging.Formatter(log_format))
     root_logger.addHandler(console_handler)
 
+
+if __name__ == "__main__":  # pragma: no cover
+    args = parse_args()
+    setup_logging(log_file=args.log)
     main(args)
