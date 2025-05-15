@@ -160,6 +160,16 @@ def write_finished_indicator(run_path):
     return new_file_path
 
 
+def rsync_running_for_path(run_path):
+    """Check if rsync is already running for the given path."""
+    run_name = os.path.basename(run_path)
+    try:
+        subprocess.check_output(["pgrep", "-f", f"rsync.*{run_name}"])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 def sync_to_storage(
     run_path: str,
     destination: str,
@@ -184,24 +194,32 @@ def sync_to_storage(
         ]
     )
 
-    if background:
-        p = subprocess.Popen(command)
-        logging.info(
-            f"{os.path.basename(run_path)}: Initiated rsync to {destination}"
-            + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
-        )
+    if rsync_running_for_path(run_path):
+        logging.info(f"{os.path.basename(run_path)}: Rsync appears ongoing, skipping.")
+        return False
     else:
-        p = subprocess.run(command)
-        if p.returncode == 0:
+        if background:
+            p = subprocess.Popen(command)
             logging.info(
-                f"{os.path.basename(run_path)}: Rsync to {destination} finished successfully."
+                f"{os.path.basename(run_path)}: Started background rsync to {destination}"
+                + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
             )
-            return True
         else:
-            logging.error(
-                f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p.returncode}."
+            logging.info(
+                f"{os.path.basename(run_path)}: Starting final rsync to {destination}"
+                + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
             )
-            return False
+            p = subprocess.run(command)
+            if p.returncode == 0:
+                logging.info(
+                    f"{os.path.basename(run_path)}: Rsync to {destination} finished successfully."
+                )
+                return True
+            else:
+                logging.error(
+                    f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p.returncode}."
+                )
+                return False
 
 
 def final_sync_and_archive(
