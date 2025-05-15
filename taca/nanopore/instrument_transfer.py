@@ -122,14 +122,20 @@ def sequencing_finished(run_path: str) -> bool:
 
 
 def dump_size(run_path: str):
-    new_file = os.path.join(run_path, "run_size.txt")
-    command = f"du -sh {run_path} | cut -f1 > {new_file}".split()
-    if not os.path.exists(new_file):
+    target_file = os.path.join(run_path, "run_size.txt")
+    if not os.path.exists(target_file):
         logging.info(f"{os.path.basename(run_path)}: Dumping run size...")
-        p = subprocess.run(command)
-        if p.returncode != 0:
-            raise AssertionError(
-                f"{os.path.basename(run_path)}: Failed to dump run size with error code {p.returncode}."
+        try:
+            # Run du command and capture output
+            du_output = subprocess.check_output(["du", "-sh", run_path], text=True)
+            # Extract just the size
+            size = du_output.split()[0]
+            # Write to file
+            with open(target_file, "w") as f:
+                f.write(size)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"{os.path.basename(run_path)}: Failed to dump run size with error code {e.returncode}."
             )
 
 
