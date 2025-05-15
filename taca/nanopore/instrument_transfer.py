@@ -160,11 +160,11 @@ def write_finished_indicator(run_path):
     return new_file_path
 
 
-def rsync_running_for_path(run_path):
-    """Check if rsync is already running for the given path."""
-    run_name = os.path.basename(run_path)
+def rsync_is_running(src, dst):
+    """Check if rsync is already running for given src and dst."""
+    pattern = f"rsync.*{src}.*{dst}"
     try:
-        subprocess.check_output(["pgrep", "-f", f"rsync.*{run_name}"])
+        subprocess.check_output(["pgrep", "-f", pattern])
         return True
     except subprocess.CalledProcessError:
         return False
@@ -194,8 +194,10 @@ def sync_to_storage(
         ]
     )
 
-    if rsync_running_for_path(run_path):
-        logging.info(f"{os.path.basename(run_path)}: Rsync appears ongoing, skipping.")
+    if rsync_is_running(src=run_path, dst=destination):
+        logging.info(
+            f"{os.path.basename(run_path)}: Rsync to {destination} is already running, skipping."
+        )
         return False
     else:
         if background:
@@ -207,7 +209,7 @@ def sync_to_storage(
         else:
             logging.info(
                 f"{os.path.basename(run_path)}: Starting final rsync to {destination}"
-                + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
+                + f" with the following command: '{' '.join(command)}'"
             )
             p = subprocess.run(command)
             if p.returncode == 0:
