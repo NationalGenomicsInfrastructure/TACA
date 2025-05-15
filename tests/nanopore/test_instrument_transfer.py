@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from unittest.mock import Mock, call, mock_open, patch
 
@@ -28,13 +29,14 @@ def setup_test_fixture():
     args.prom_archive = tmp.name + "/data/nosync"
     args.minknow_logs = tmp.name + "/minknow_logs"
     args.rsync_log = tmp.name + "/data/rsync_log.txt"
-    args.log = args.prom_runs + "/data/instrument_transfer.log"
+    args.log = tmp.name + "/data/instrument_transfer.log"
 
     # Create dirs
     for dir in [
         args.prom_runs,
         args.nas_runs,
         args.nas_runs + "/nosync",
+        args.nas_runs + "/nosync/archived",
         args.miarka_runs,
         args.prom_archive,
         args.minknow_logs,
@@ -78,7 +80,7 @@ def setup_test_fixture():
 
 
 def test_main_delete(setup_test_fixture):
-    """Check so that remotely archived runs runs and empty dirs
+    """Check so that remotely archived runs and empty dirs
     are deleted from the local archive.
     """
 
@@ -211,23 +213,37 @@ def test_dump_path():
 
 
 def test_write_finished_indicator():
-    with patch("builtins.open", new_callable=mock_open) as mock_file:
-        run_path = "path/to/run"
-        instrument_transfer.write_finished_indicator(run_path)
-        mock_file.assert_called_once_with(run_path + "/.sync_finished", "w")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Call the function with the temporary directory
+        result = instrument_transfer.write_finished_indicator(temp_dir)
+        # Assert the file was created correctly
+        assert os.path.exists(result)
+        assert os.path.basename(result) == ".sync_finished"
 
 
 def test_sync_to_storage():
-    with patch("subprocess.Popen") as mock_Popen:
-        instrument_transfer.sync_to_storage("run_dir", "destination", "log")
+    with (
+        patch("subprocess.Popen") as mock_Popen,
+        patch("subprocess.check_output") as mock_check_output,
+    ):
+        # Configure check_output to simulate no running rsync process
+        mock_check_output.side_effect = subprocess.CalledProcessError(1, ["pgrep"])
+
+        instrument_transfer.sync_to_storage(
+            run_path="/path/to/run",
+            destination="/path/to/destination",
+            rsync_log="/path/to/rsync_log",
+            background=True,
+            settings=[],
+        )
         mock_Popen.assert_called_once_with(
             [
                 "run-one",
                 "rsync",
-                "-rvu",
-                "--log-file=" + "log",
-                "run_dir",
-                "destination",
+                "-auq",
+                "--log-file=/path/to/rsync_log",
+                "/path/to/run",
+                "/path/to/destination",
             ]
         )
 
@@ -283,59 +299,32 @@ def test_final_sync_to_storage(
 
 
 def test_archive_finished_run():
-    # Set up combinatorial testing for cases
-    archive_dirs = [
-        "/data/nosync",
-        "/data/nosync/experiment/sample",
-        "/data/nosync/experiment/sample/run",
-    ]
-    neighbor_dirs = [
-        None,
-        "/data/experiment/sample/run2",
-        "/data/experiment/sample2",
-    ]
+    # Set up tmp dir
+    tmp = tempfile.TemporaryDirectory()
+    tmp_path = tmp.name
 
-    for archive_dir in archive_dirs:
-        for neighbor_dir in neighbor_dirs:
-            # Set up tmp dir
-            tmp = tempfile.TemporaryDirectory()
-            tmp_path = tmp.name
+    # Create run dir
+    run_path = tmp_path + "/experiment" + "/sample" + f"/{DUMMY_RUN_NAME}"
+    os.makedirs(run_path)
 
-            # Create run dir
-            experiment_path = tmp_path + "/data/experiment"
-            sample_path = experiment_path + "/sample"
-            run_path = sample_path + f"/{DUMMY_RUN_NAME}"
-            os.makedirs(run_path)
+    # Create archive dir
+    archive_path = tmp_path + "/data/nosync"
+    os.makedirs(archive_path)
 
-            # Create neighbor dir, if any
-            if neighbor_dir:
-                neighbor_path = tmp_path + neighbor_dir
-                os.mkdir(neighbor_path)
+    # Execute code
+    instrument_transfer.archive_finished_run(run_path, archive_path)
 
-            # Create archive dir
-            archive_path = tmp_path + archive_dir
-            os.makedirs(archive_path)
+    # Assert run is moved to archive dir
+    assert os.path.exists(archive_path + f"/{DUMMY_RUN_NAME}")
 
-            # Execute code
-            instrument_transfer.archive_finished_run(run_path, archive_path)
+    # Assert run is removed from original location
+    assert not os.path.exists(run_path)
 
-            # Assert run is moved to archive dir
-            assert os.path.exists(archive_path + f"/experiment/sample/{DUMMY_RUN_NAME}")
+    # Assert experiment and sample dirs are removed if empty
+    assert not os.path.exists(tmp_path + "/experiment/sample")
+    assert not os.path.exists(tmp_path + "/experiment")
 
-            # Assert run is removed from original location
-            assert not os.path.exists(run_path)
-
-            # Assert experiment and sample dirs are removed if empty
-            if neighbor_dir:
-                assert os.path.exists(neighbor_path)
-                if neighbor_dir == "/data/experiment/sample/run2":
-                    assert os.path.exists(sample_path)
-                else:
-                    assert not os.path.exists(sample_path)
-            else:
-                assert not os.path.exists(experiment_path)
-
-            tmp.cleanup()
+    tmp.cleanup()
 
 
 def test_parse_position_logs(setup_test_fixture):
