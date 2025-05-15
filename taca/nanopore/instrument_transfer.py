@@ -67,11 +67,9 @@ def handle_runs(
 ):
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"{os.path.basename(run_path)}: Processing run...")
+        logging.info(f"{os.path.basename(run_path)}: Processing run at '{run_path}'")
 
-        logging.info(f"{os.path.basename(run_path)}: Dumping run path...")
         dump_path(run_path)
-        logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
         dump_pore_count_history(run_path, pore_counts)
 
         if not sequencing_finished(run_path):
@@ -137,9 +135,10 @@ def dump_path(run_path: str):
     new_file = os.path.join(run_path, "run_path.txt")
     proj, sample, run = run_path.split(os.sep)[-3:]
     path_to_write = os.path.join(proj, sample, run)
-    with open(new_file, "w") as f:
-        f.write(path_to_write)
-    return path_to_write
+    if not os.path.exists(path_to_write):
+        logging.info(f"{os.path.basename(run_path)}: Dumping run path...")
+        with open(new_file, "w") as f:
+            f.write(path_to_write)
 
 
 def write_finished_indicator(run_path):
@@ -372,42 +371,43 @@ def get_pore_counts(position_logs: list) -> list:
     return pore_counts
 
 
-def dump_pore_count_history(run: str, pore_counts: list) -> str:
+def dump_pore_count_history(run_path: str, pore_counts: list) -> str:
     """For a recently started run, dump all QC and MUX events that the instrument remembers
     for the flow cell as a file in the run dir."""
 
-    flowcell_id = os.path.basename(run).split("_")[-2]
-    run_start_time = dt.strptime(os.path.basename(run)[0:13], "%Y%m%d_%H%M")
+    flowcell_id = os.path.basename(run_path).split("_")[-2]
+    run_start_time = dt.strptime(os.path.basename(run_path)[0:13], "%Y%m%d_%H%M")
     log_time_pattern = "%Y-%m-%d %H:%M:%S.%f"
 
-    new_file_path = os.path.join(run, "pore_count_history.csv")
+    new_file_path = os.path.join(run_path, "pore_count_history.csv")
 
-    flowcell_pore_counts = [
-        log_entry
-        for log_entry in pore_counts
-        if (
-            log_entry["flow_cell_id"] == flowcell_id
-            and dt.strptime(log_entry["timestamp"], log_time_pattern) <= run_start_time
-        )
-    ]
+    if not os.path.exists(new_file_path):
+        logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
+        flowcell_pore_counts = [
+            log_entry
+            for log_entry in pore_counts
+            if (
+                log_entry["flow_cell_id"] == flowcell_id
+                and dt.strptime(log_entry["timestamp"], log_time_pattern)
+                <= run_start_time
+            )
+        ]
 
-    if flowcell_pore_counts:
-        flowcell_pore_counts_sorted = sorted(
-            flowcell_pore_counts, key=lambda x: x["timestamp"], reverse=True
-        )
+        if flowcell_pore_counts:
+            flowcell_pore_counts_sorted = sorted(
+                flowcell_pore_counts, key=lambda x: x["timestamp"], reverse=True
+            )
 
-        header = flowcell_pore_counts_sorted[0].keys()
-        rows = [e.values() for e in flowcell_pore_counts_sorted]
+            header = flowcell_pore_counts_sorted[0].keys()
+            rows = [e.values() for e in flowcell_pore_counts_sorted]
 
-        with open(new_file_path, "w") as f:
-            f.write(",".join(header) + "\n")
-            for row in rows:
-                f.write(",".join(row) + "\n")
-    else:
-        # Create an empty file if there is not one already
-        Path(new_file_path).touch(exist_ok=True)
-
-    return new_file_path
+            with open(new_file_path, "w") as f:
+                f.write(",".join(header) + "\n")
+                for row in rows:
+                    f.write(",".join(row) + "\n")
+        else:
+            # Create an empty file if there is not one already
+            Path(new_file_path).touch()
 
 
 def valid_dir(path):
