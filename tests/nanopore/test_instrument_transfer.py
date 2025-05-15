@@ -20,36 +20,34 @@ def setup_test_fixture():
 
     # Set up args
     args = Mock()
-    args.source_dir = tmp.name + "/data"
-    args.dest_dir = tmp.name + "/preproc"
-    args.dest_dir_qc = tmp.name + "/preproc/qc"
-    args.archive_dir = tmp.name + "/data/nosync"
-    args.minknow_logs_dir = tmp.name + "/minknow_logs"
-    args.log_path = args.source_dir + "/instrument_transfer_log.txt"
+    args.prom_runs = tmp.name + "/data"
+    args.exclude_dirs = ["nosync", "keep_data", "cg_data"]
+    args.nas_runs = tmp.name + "/preproc"
+    args.miarka_runs = tmp.name + "user@hpc.se:/promethion/"
+    args.miarka_settings = ["--chown=:group", "--chmod=Dg+s,g+rw"]
+    args.prom_archive = tmp.name + "/data/nosync"
+    args.minknow_logs = tmp.name + "/minknow_logs"
+    args.rsync_log = tmp.name + "/data/rsync_log.txt"
+    args.log = args.prom_runs + "/data/instrument_transfer.log"
 
     # Create dirs
     for dir in [
-        args.source_dir,
-        args.dest_dir,
-        args.dest_dir + "/nosync",
-        args.dest_dir + "/nosync/archived",
-        args.dest_dir_qc,
-        args.archive_dir,
-        args.minknow_logs_dir,
+        args.prom_runs,
+        args.nas_runs,
+        args.nas_runs + "/nosync",
+        args.miarka_runs,
+        args.prom_archive,
+        args.minknow_logs,
     ]:
         os.makedirs(dir)
 
     # Create files
-    file_paths = {
-        "rsync_log_path": args.source_dir + "/rsync_log.txt",
-        "script_log_path": args.source_dir + "/instrument_transfer_log.txt",
-    }
-    for file_path in file_paths:
-        open(file_paths[file_path], "w").close()
+    for file_path in [args.log, args.rsync_log]:
+        open(file_path, "w").close()
 
     # Build log dirs
     for position_dir_n, position_dir in enumerate(["1A", "MN19414"]):
-        os.makedirs(tmp.name + f"/minknow_logs/{position_dir}")
+        os.makedirs(f"{args.minknow_logs}/{position_dir}")
 
         # Build log files
         for log_file_n, log_file in enumerate(
@@ -70,11 +68,11 @@ def setup_test_fixture():
                     ]
 
                     with open(
-                        args.minknow_logs_dir + f"/{position_dir}/{log_file}", "a"
+                        args.minknow_logs + f"/{position_dir}/{log_file}", "a"
                     ) as file:
                         file.write("\n".join(lines) + "\n")
 
-    yield args, tmp, file_paths
+    yield args, tmp
 
     tmp.cleanup()
 
@@ -85,16 +83,16 @@ def test_main_delete(setup_test_fixture):
     """
 
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
     # Locally and remotely archived run
-    run_path = f"{args.archive_dir}/experiment/sample/{DUMMY_RUN_NAME}"
+    run_path = f"{args.prom_archive}/experiment/sample/{DUMMY_RUN_NAME}"
     os.makedirs(run_path)
-    remote_run_path = f"{args.dest_dir}/nosync/{DUMMY_RUN_NAME}"
+    remote_run_path = f"{args.nas_runs}/nosync/{DUMMY_RUN_NAME}"
     os.makedirs(remote_run_path)
 
     # Locally but not remotely archived run
-    innocent_run_path = f"{args.archive_dir}/innocent_experiment/innocent_sample/{DUMMY_RUN_NAME.replace('randomhash', 'dontDeleteMe')}"
+    innocent_run_path = f"{args.prom_archive}/innocent_experiment/innocent_sample/{DUMMY_RUN_NAME.replace('randomhash', 'dontDeleteMe')}"
     os.makedirs(innocent_run_path)
 
     with (
@@ -108,8 +106,8 @@ def test_main_delete(setup_test_fixture):
         mock_rmtree.assert_has_calls([call(f"{run_path}")])
         mock_rmdir.assert_has_calls(
             [
-                call(f"{args.archive_dir}/experiment/sample"),
-                call(f"{args.archive_dir}/experiment"),
+                call(f"{args.prom_archive}/experiment/sample"),
+                call(f"{args.prom_archive}/experiment"),
             ]
         )
         assert os.path.exists(innocent_run_path)
@@ -119,11 +117,11 @@ def test_main_ignore_CTC(setup_test_fixture):
     """Check so that runs on configuration test cells are not picked up."""
 
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
     # Setup run
     run_path = (
-        f"{args.source_dir}/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'CTC')}"
+        f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'CTC')}"
     )
     os.makedirs(run_path)
 
@@ -142,13 +140,13 @@ def test_main_ignore_CTC(setup_test_fixture):
 @patch("taca.nanopore.instrument_transfer.sync_to_storage")
 def test_main(mock_sync, mock_final_sync, setup_test_fixture, finished, qc):
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
     # Set up ONT run
     if not qc:
-        run_path = f"{args.source_dir}/experiment/sample/{DUMMY_RUN_NAME}"
+        run_path = f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME}"
     else:
-        run_path = f"{args.source_dir}/experiment/QC_sample/{DUMMY_RUN_NAME}"
+        run_path = f"{args.prom_runs}/experiment/QC_sample/{DUMMY_RUN_NAME}"
     os.makedirs(run_path)
 
     # Add finished file indicator
@@ -159,18 +157,16 @@ def test_main(mock_sync, mock_final_sync, setup_test_fixture, finished, qc):
     instrument_transfer.main(args)
 
     if not qc:
-        dest_path = args.dest_dir
+        dest_path = args.nas_runs
     else:
-        dest_path = args.dest_dir_qc
+        dest_path = args.nas_runs_qc
 
     # Check sync was initiated
     if not finished:
-        mock_sync.assert_called_once_with(
-            run_path, dest_path, file_paths["rsync_log_path"]
-        )
+        mock_sync.assert_called_once_with(run_path, dest_path, args.rsync_log)
     else:
         mock_final_sync.assert_called_once_with(
-            run_path, dest_path, args.archive_dir, file_paths["rsync_log_path"]
+            run_path, dest_path, args.prom_archive, args.rsync_log
         )
 
     # Check path was dumped
@@ -344,9 +340,9 @@ def test_archive_finished_run():
 
 def test_parse_position_logs(setup_test_fixture):
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs_dir)
+    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
 
     # Check length
     assert len(logs) == 24
@@ -367,9 +363,9 @@ def test_parse_position_logs(setup_test_fixture):
 
 def test_get_pore_counts(setup_test_fixture):
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs_dir)
+    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
     pore_counts = instrument_transfer.get_pore_counts(logs)
 
     # Check length
@@ -391,9 +387,9 @@ def test_get_pore_counts(setup_test_fixture):
 
 def test_dump_pore_count_history(setup_test_fixture):
     # Run fixture
-    args, tmp, file_paths = setup_test_fixture
+    args, tmp = setup_test_fixture
 
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs_dir)
+    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
     pore_counts = instrument_transfer.get_pore_counts(logs)
 
     # Nothing to add, no file
