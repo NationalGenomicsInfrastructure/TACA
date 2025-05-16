@@ -1,16 +1,15 @@
-import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
+from textwrap import dedent
 from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
 from taca.nanopore import instrument_transfer
 
-DUMMY_RUN_NAME = "20240112_2342_MN19414_TEST12345_randomhash"
+DUMMY_RUN_NAME = "20240112_2342_1A_TEST12345_randomhash"
 
 
 @pytest.fixture
@@ -24,7 +23,7 @@ def setup_test_fixture():
     args.prom_runs = tmp.name + "/data"
     args.exclude_dirs = ["nosync", "keep_data", "cg_data"]
     args.nas_runs = tmp.name + "/preproc"
-    args.miarka_runs = tmp.name + "user@hpc.se:/promethion/"
+    args.miarka_runs = tmp.name + "/hpc/promethion/"
     args.miarka_settings = ["--chown=:group", "--chmod=Dg+s,g+rw"]
     args.prom_archive = tmp.name + "/data/nosync"
     args.minknow_logs = tmp.name + "/minknow_logs"
@@ -79,42 +78,6 @@ def setup_test_fixture():
     tmp.cleanup()
 
 
-def test_main_delete(setup_test_fixture):
-    """Check so that remotely archived runs and empty dirs
-    are deleted from the local archive.
-    """
-
-    # Run fixture
-    args, tmp = setup_test_fixture
-
-    # Locally and remotely archived run
-    run_path = f"{args.prom_archive}/experiment/sample/{DUMMY_RUN_NAME}"
-    os.makedirs(run_path)
-    remote_run_path = f"{args.nas_runs}/nosync/{DUMMY_RUN_NAME}"
-    os.makedirs(remote_run_path)
-
-    # Locally but not remotely archived run
-    innocent_run_path = f"{args.prom_archive}/innocent_experiment/innocent_sample/{DUMMY_RUN_NAME.replace('randomhash', 'dontDeleteMe')}"
-    os.makedirs(innocent_run_path)
-
-    with (
-        patch("shutil.rmtree", side_effect=shutil.rmtree) as mock_rmtree,
-        patch("os.rmdir", side_effect=os.rmdir) as mock_rmdir,
-    ):
-        # Run code
-        instrument_transfer.main(args)
-
-        # Assert deletions
-        mock_rmtree.assert_has_calls([call(f"{run_path}")])
-        mock_rmdir.assert_has_calls(
-            [
-                call(f"{args.prom_archive}/experiment/sample"),
-                call(f"{args.prom_archive}/experiment"),
-            ]
-        )
-        assert os.path.exists(innocent_run_path)
-
-
 def test_main_ignore_CTC(setup_test_fixture):
     """Check so that runs on configuration test cells are not picked up."""
 
@@ -135,41 +98,44 @@ def test_main_ignore_CTC(setup_test_fixture):
         mock_dump_path.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "finished, qc", [(True, True), (True, False), (False, True), (False, False)]
-)
-@patch("taca.nanopore.instrument_transfer.final_sync_to_storage")
-@patch("taca.nanopore.instrument_transfer.sync_to_storage")
-def test_main(mock_sync, mock_final_sync, setup_test_fixture, finished, qc):
+@patch("subprocess.run")
+@patch("subprocess.check_output")
+@patch("subprocess.Popen")
+def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fixture):
     # Run fixture
     args, tmp = setup_test_fixture
 
-    # Set up ONT run
-    if not qc:
-        run_path = f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME}"
-    else:
-        run_path = f"{args.prom_runs}/experiment/QC_sample/{DUMMY_RUN_NAME}"
-    os.makedirs(run_path)
+    # Configure mock behaviors
+    mock_run.return_value.returncode = 0
+    mock_popen.return_value.pid = 1234
+    mock_check_output.side_effect = subprocess.CalledProcessError(1, "noRsyncRunning")
 
-    # Add finished file indicator
-    if finished:
-        open(run_path + "/final_summary.txt", "w").close()
+    # Set up ONT run
+    run_path = f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME}"
+    os.makedirs(run_path)
 
     # Start testing
     instrument_transfer.main(args)
 
-    if not qc:
-        dest_path = args.nas_runs
-    else:
-        dest_path = args.nas_runs_qc
-
-    # Check sync was initiated
-    if not finished:
-        mock_sync.assert_called_once_with(run_path, dest_path, args.rsync_log)
-    else:
-        mock_final_sync.assert_called_once_with(
-            run_path, dest_path, args.prom_archive, args.rsync_log
-        )
+    # Check rsync was called
+    assert mock_popen.call_args_list[0].args[0] == [
+        "run-one",
+        "rsync",
+        "-auq",
+        f"--log-file={args.rsync_log}",
+        run_path,
+        args.nas_runs,
+    ]
+    assert mock_popen.call_args_list[1].args[0] == [
+        "run-one",
+        "rsync",
+        "-auq",
+        f"--log-file={args.rsync_log}",
+        "--chown=:group",
+        "--chmod=Dg+s,g+rw",
+        run_path,
+        args.miarka_runs,
+    ]
 
     # Check path was dumped
     assert os.path.exists(run_path + "/run_path.txt")
@@ -177,24 +143,15 @@ def test_main(mock_sync, mock_final_sync, setup_test_fixture, finished, qc):
 
     # Check pore count history was dumped
     assert os.path.exists(run_path + "/pore_count_history.csv")
-    # Assert that all relevant entries from all files from all dirs were dumped
-    template = (
-        "\n".join(
-            [
-                "flow_cell_id,timestamp,position,type,num_pores,total_pores",
-                "TEST12345,2024-01-01 01:01:01.01,MN19414,qc,1111,1111",
-                "TEST12345,2024-01-01 01:01:01.00,MN19414,mux,1110,1110",
-                "TEST12345,2024-01-01 01:00:01.01,MN19414,qc,1011,1011",
-                "TEST12345,2024-01-01 01:00:01.00,MN19414,mux,1010,1010",
-                "TEST12345,2024-01-01 00:01:01.01,1A,qc,0111,0111",
-                "TEST12345,2024-01-01 00:01:01.00,1A,mux,0110,0110",
-                "TEST12345,2024-01-01 00:00:01.01,1A,qc,0011,0011",
-                "TEST12345,2024-01-01 00:00:01.00,1A,mux,0010,0010",
-            ]
-        )
-        + "\n"
+    assert open(run_path + "/pore_count_history.csv").read() == (
+        dedent("""
+            flow_cell_id,timestamp,position,type,num_pores,total_pores
+            TEST12345,2024-01-01 00:01:01.01,1A,qc,0111,0111
+            TEST12345,2024-01-01 00:01:01.00,1A,mux,0110,0110
+            TEST12345,2024-01-01 00:00:01.01,1A,qc,0011,0011
+            TEST12345,2024-01-01 00:00:01.00,1A,mux,0010,0010
+        """).lstrip()
     )
-    assert open(run_path + "/pore_count_history.csv").read() == template
 
 
 def test_sequencing_finished():
@@ -248,56 +205,6 @@ def test_sync_to_storage():
         )
 
 
-@patch("taca.nanopore.instrument_transfer.archive_finished_run")
-@patch("taca.nanopore.instrument_transfer.write_finished_indicator")
-@patch("subprocess.run")
-def test_final_sync_to_storage(
-    mock_run,
-    mock_write_finished_indicator,
-    mock_archive_finished_run,
-):
-    mock_write_finished_indicator.return_value = ".sync_finished"
-
-    # For finished run
-    mock_run.return_value.returncode = 0
-
-    instrument_transfer.final_sync_and_archive(
-        run_path="run_dir",
-        destination_nas="destination",
-        archive_dir="archive_dir",
-        rsync_log="log_path",
-    )
-
-    assert mock_run.call_args_list[0] == call(
-        [
-            "run-one",
-            "rsync",
-            "-rvu",
-            "--log-file=" + "log_path",
-            "run_dir",
-            "destination",
-        ]
-    )
-
-    assert mock_run.call_args_list[1] == call(
-        ["rsync", ".sync_finished", "destination/run_dir"]
-    )
-
-    mock_archive_finished_run.assert_called_once_with("run_dir", "archive_dir")
-
-    # For not finished run
-    mock_run.return_value.returncode = 1
-
-    instrument_transfer.final_sync_and_archive(
-        run_path="run_dir",
-        destination_nas="destination",
-        archive_dir="archive_dir",
-        rsync_log="log_path",
-    )
-
-    assert mock_run.call_count == 3
-
-
 def test_archive_finished_run():
     # Set up tmp dir
     tmp = tempfile.TemporaryDirectory()
@@ -324,102 +231,4 @@ def test_archive_finished_run():
     assert not os.path.exists(tmp_path + "/experiment/sample")
     assert not os.path.exists(tmp_path + "/experiment")
 
-    tmp.cleanup()
-
-
-def test_parse_position_logs(setup_test_fixture):
-    # Run fixture
-    args, tmp = setup_test_fixture
-
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
-
-    # Check length
-    assert len(logs) == 24
-
-    # Check uniqueness
-    logs_as_strings = [json.dumps(log, sort_keys=True) for log in logs]
-    assert len(logs) == len(set(logs_as_strings))
-
-    for entry in logs:
-        assert re.match(r"^(MN19414)|(1A)$", entry["position"])
-        assert re.match(r"^2024-01-01 0\d:0\d:0\d.0\d$", entry["timestamp"])
-        assert re.match(r"^INFO: [a-z\._]+ \(user_messages\)$", entry["category"])
-
-        assert re.match(r"^(TEST12345)|(PAM12345)$", entry["body"]["flow_cell_id"])
-        assert re.match(r"^\d+$", entry["body"]["num_pores"])
-        assert re.match(r"^\d+$", entry["body"]["total_pores"])
-
-
-def test_get_pore_counts(setup_test_fixture):
-    # Run fixture
-    args, tmp = setup_test_fixture
-
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
-    pore_counts = instrument_transfer.get_pore_counts(logs)
-
-    # Check length
-    assert len(pore_counts) == 16
-
-    # Check uniqueness
-    pore_counts_as_strings = [json.dumps(log, sort_keys=True) for log in logs]
-    assert len(logs) == len(set(pore_counts_as_strings))
-
-    for entry in pore_counts:
-        assert re.match(r"^(TEST12345)|(PAM12345)$", entry["flow_cell_id"])
-        assert re.match(r"^(MN19414)|(1A)$", entry["position"])
-        assert re.match(r"^2024-01-01 0\d:0\d:0\d.0\d$", entry["timestamp"])
-
-        assert re.match(r"^(qc)|(mux)$", entry["type"])
-        assert re.match(r"^\d+$", entry["num_pores"])
-        assert re.match(r"^\d+$", entry["total_pores"])
-
-
-def test_dump_pore_count_history(setup_test_fixture):
-    # Run fixture
-    args, tmp = setup_test_fixture
-
-    logs = instrument_transfer.parse_position_logs(args.minknow_logs)
-    pore_counts = instrument_transfer.get_pore_counts(logs)
-
-    # Nothing to add, no file
-    tmp = tempfile.TemporaryDirectory()
-    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'FLG')}"
-    os.makedirs(run_path)
-    new_file = instrument_transfer.dump_pore_count_history(run_path, pore_counts)
-    assert open(new_file).read() == ""
-    tmp.cleanup()
-
-    # Nothing to add, file is present
-    tmp = tempfile.TemporaryDirectory()
-    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'FLG')}"
-    os.makedirs(run_path)
-    open(run_path + "/pore_count_history.csv", "w").write("test")
-    new_file = instrument_transfer.dump_pore_count_history(run_path, pore_counts)
-    assert open(new_file).read() == "test"
-    tmp.cleanup()
-
-    # Something to add
-    tmp = tempfile.TemporaryDirectory()
-    run_path = tmp.name + f"/experiment/sample/{DUMMY_RUN_NAME}"
-    os.makedirs(run_path)
-    new_file = instrument_transfer.dump_pore_count_history(run_path, pore_counts)
-
-    template = (
-        "\n".join(
-            [
-                "flow_cell_id,timestamp,position,type,num_pores,total_pores",
-                "TEST12345,2024-01-01 01:01:01.01,MN19414,qc,1111,1111",
-                "TEST12345,2024-01-01 01:01:01.00,MN19414,mux,1110,1110",
-                "TEST12345,2024-01-01 01:00:01.01,MN19414,qc,1011,1011",
-                "TEST12345,2024-01-01 01:00:01.00,MN19414,mux,1010,1010",
-                "TEST12345,2024-01-01 00:01:01.01,1A,qc,0111,0111",
-                "TEST12345,2024-01-01 00:01:01.00,1A,mux,0110,0110",
-                "TEST12345,2024-01-01 00:00:01.01,1A,qc,0011,0011",
-                "TEST12345,2024-01-01 00:00:01.00,1A,mux,0010,0010",
-            ]
-        )
-        + "\n"
-    )
-
-    assert open(new_file).read() == template
     tmp.cleanup()
