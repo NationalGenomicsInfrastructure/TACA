@@ -365,13 +365,22 @@ class ONT_run:
         """Generate a QC report for the run using ToulligQC and publish it to GenStat."""
 
         report_dir_name = "toulligqc_report"
+        exit_code_path = os.path.join(self.run_abspath, report_dir_name, "exit_code")
 
         # Do not run this function if it's output dir exists in the run dir
-        if os.path.exists(f"{self.run_abspath}/{report_dir_name}"):
-            logging.info(
-                f"{self.run_name}: ToulligQC report dir already exists, skipping."
-            )
-            return None
+        if os.path.exists(exit_code_path):
+            with open(exit_code_path) as f:
+                exit_code = f.read()
+            if exit_code == "0":
+                logging.info(
+                    f"{self.run_name}: ToulligQC report already generated, skipping."
+                )
+                return None
+            else:
+                logging.error(
+                    f"{self.run_name}: ToulligQC report generation failed with exit code {exit_code}, skipping."
+                )
+                raise AssertionError()
 
         # Get sequencing summary file
         glob_summary = glob.glob(f"{self.run_abspath}/sequencing_summary*.txt")
@@ -443,6 +452,10 @@ class ONT_run:
         # Run the command
         # Small enough to wait for, should be done in 1-5 minutes
         process = subprocess.run(command_list)
+
+        # Dump exit status
+        with open(exit_code_path, "w") as f:
+            f.write(process.returncode)
 
         # Check if the command was successful
         if process.returncode == 0:
@@ -571,8 +584,8 @@ class ONT_run:
     @property
     def rsync_successful(self):
         with open(self.rsync_exit_file) as rsync_exit_file:
-            rsync_exit_status = rsync_exit_file.readlines()
-        if rsync_exit_status[0].strip() == "0":
+            rsync_exit_status = rsync_exit_file.read()
+        if rsync_exit_status == "0":
             return True
         else:
             return False
