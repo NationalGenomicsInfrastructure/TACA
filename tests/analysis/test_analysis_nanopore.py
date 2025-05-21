@@ -41,9 +41,6 @@ def parametrize_testruns():
     # Read data, trimming whitespace
     df = pd.read_csv(data, sep=r"\s+")
 
-    # Fix data types
-    df.anglerfish_exit = df.anglerfish_exit[df.anglerfish_exit.notna()].astype("Int64")
-
     # Replace nan(s) with None(s)
     df = df.replace(np.nan, None)
 
@@ -89,21 +86,6 @@ def test_ont_transfer(create_dirs, run_properties, caplog):
     # Mock parsing MinKNOW auxillary files
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_minknow_json").start()
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_pore_activity").start()
-
-    # Mock subprocess.Popen ONLY for Anglerfish
-    original_popen = subprocess.Popen
-
-    def mock_Popen_side_effect(*args, **kwargs):
-        if "anglerfish" in args[0]:
-            return mock_Popen
-        else:
-            return original_popen(*args, **kwargs)
-
-    mock_Popen = patch(
-        "taca.nanopore.ONT_run_classes.subprocess.Popen",
-        side_effect=mock_Popen_side_effect,
-    ).start()
-    mock_Popen.pid = 1337  # Nice
 
     # Mock subprocess.run ONLY for ToulligQC
     original_run = subprocess.run

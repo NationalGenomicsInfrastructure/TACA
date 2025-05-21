@@ -80,9 +80,6 @@ def create_ONT_run_dir(
     sync_finished: bool = False,
     fastq_dirs: bool = False,
     barcode_dirs: bool = False,
-    anglerfish_samplesheets: bool = False,
-    anglerfish_ongoing: bool = False,
-    anglerfish_exit: int | None = None,
 ) -> str:
     """Create a run directory according to specifications.
 
@@ -161,25 +158,6 @@ def create_ONT_run_dir(
 
     if sync_finished:
         open(f"{run_path}/.sync_finished", "w").close()
-
-    if anglerfish_samplesheets:
-        current_year_dir = (
-            f"{tmp.name}/ngi-nas-ns/samplesheets/anglerfish/{run_start_time[0:4]}"
-        )
-        os.mkdir(current_year_dir)
-        for order in ["first", "latest"]:
-            open(
-                f"{current_year_dir}/Anglerfish_samplesheet_{experiment_name}_{order}.csv",
-                "w",
-            ).close()
-
-    if anglerfish_ongoing:
-        with open(f"{run_path}/.anglerfish_ongoing", "w") as f:
-            f.write("1337")
-
-    if anglerfish_exit is not None:
-        with open(f"{run_path}/.anglerfish_done", "w") as f:
-            f.write(str(anglerfish_exit))
 
     if fastq_dirs:
         os.mkdir(f"{run_path}/fastq_pass")

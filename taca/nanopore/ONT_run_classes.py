@@ -27,10 +27,9 @@ class ONT_run:
     Expects instantiation from absolute path of run directory on preprocessing server.
     """
 
-    def __init__(self, run_abspath: str, run_type: str | None = None):
+    def __init__(self, run_abspath: str):
         # Parse args
         self.run_abspath = run_abspath
-        self.run_type = run_type
 
         # Parse run name
         self.run_name = os.path.basename(run_abspath)
@@ -65,14 +64,11 @@ class ONT_run:
         self.toulligqc_executable = CONFIG["nanopore_analysis"]["toulligqc_executable"]
 
         # Get run-type and instrument-specific attributes from config
-        if self.run_type:
-            _conf = CONFIG["nanopore_analysis"]["run_types"][self.run_type][
-                "instruments"
-            ][self.instrument]
-            self.transfer_log = _conf["transfer_log"]
-            self.archive_dir = _conf["archive_dir"]
-            self.metadata_dir = _conf["metadata_dir"]
-            self.destination = _conf["destination"]
+        _conf = CONFIG["nanopore_analysis"]["instruments"][self.instrument]
+        self.transfer_log = _conf["transfer_log"]
+        self.archive_dir = _conf["archive_dir"]
+        self.metadata_dir = _conf["metadata_dir"]
+        self.destination = _conf["destination"]
 
         # Get DB
         self.db = NanoporeRunsConnection(CONFIG["statusdb"], dbname="nanopore_runs")
