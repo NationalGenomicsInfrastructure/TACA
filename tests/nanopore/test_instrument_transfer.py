@@ -1,9 +1,8 @@
 import os
-import shutil
 import subprocess
 import tempfile
 from textwrap import dedent
-from unittest.mock import Mock, call, mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
