@@ -201,25 +201,25 @@ def sync_to_storage(
         return False
     else:
         if background:
-            p = subprocess.Popen(command)
+            p_background = subprocess.Popen(command)
             logging.info(
                 f"{os.path.basename(run_path)}: Started background rsync to {destination}"
-                + f" with PID {p.pid} and the following command: '{' '.join(command)}'"
+                + f" with PID {p_background.pid} and the following command: '{' '.join(command)}'"
             )
         else:
             logging.info(
                 f"{os.path.basename(run_path)}: Starting final rsync to {destination}"
                 + f" with the following command: '{' '.join(command)}'"
             )
-            p = subprocess.run(command)
-            if p.returncode == 0:
+            p_foreground = subprocess.run(command)
+            if p_foreground.returncode == 0:
                 logging.info(
                     f"{os.path.basename(run_path)}: Rsync to {destination} finished successfully."
                 )
                 return True
             else:
                 logging.error(
-                    f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p.returncode}."
+                    f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p_foreground.returncode}."
                 )
                 return False
 
@@ -399,7 +399,7 @@ def get_pore_counts(position_logs: list) -> list:
     return pore_counts
 
 
-def dump_pore_count_history(run_path: str, minknow_logs: str) -> str:
+def dump_pore_count_history(run_path: str, minknow_logs: str):
     """For a recently started run, dump all QC and MUX events that the instrument remembers
     for the flow cell as a file in the run dir."""
 
