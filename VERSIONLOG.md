@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250527.1
+
+Bugfix: Fail organisation of ONT data if tar fails
+
 ## 20250404.1
 
 Add URL to Element FCs in email notifications
