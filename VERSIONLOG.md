@@ -4,6 +4,14 @@
 
 Bugfix: Fail organisation of ONT data if tar fails
 
+## 20250422.1
+
+Fix bug with ONT instrument identification
+
+## 20250407.1
+
+Adhere to function return format for error cases
+
 ## 20250404.1
 
 Add URL to Element FCs in email notifications
