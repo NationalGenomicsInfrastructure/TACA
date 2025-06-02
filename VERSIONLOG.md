@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250527.1
+
+Bugfix: Fail organisation of ONT data if tar fails
+
 ## 20250422.1
 
 Fix bug with ONT instrument identification
