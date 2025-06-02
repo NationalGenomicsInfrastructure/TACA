@@ -134,7 +134,7 @@ def dump_size(run_path: str):
             with open(target_file, "w") as f:
                 f.write(size)
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(
+            logging.error(
                 f"{os.path.basename(run_path)}: Failed to dump run size with error code {e.returncode}."
             )
 
@@ -248,9 +248,10 @@ def final_sync_and_archive(
             f"{os.path.basename(run_path)}: All rsyncs finished successfully, syncing finished indicator..."
         )
     else:
-        raise AssertionError(
+        logging.error(
             f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
         )
+        return
 
     logging.info(f"{os.path.basename(run_path)}: Creating and syncing indicator file.")
     write_finished_indicator(run_path)
@@ -273,7 +274,7 @@ def final_sync_and_archive(
         archive_finished_run(run_path, args.prom_archive)
         logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
     else:
-        raise AssertionError(
+        logging.error(
             f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
         )
 
