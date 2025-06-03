@@ -367,101 +367,107 @@ class ONT_run:
         report_dir_name = "toulligqc_report"
         exit_code_path = os.path.join(self.run_abspath, report_dir_name, "exit_code")
 
-        # Do not run this function if it's output dir exists in the run dir
+        # Check for previous exit code
         if os.path.exists(exit_code_path):
             with open(exit_code_path) as f:
                 exit_code = int(f.read().strip())
             if exit_code == 0:
-                logging.info(
-                    f"{self.run_name}: ToulligQC report already generated, skipping."
-                )
-                return None
+                logging.info(f"{self.run_name}: ToulligQC report already generated.")
             else:
                 logging.error(
                     f"{self.run_name}: ToulligQC report generation failed with exit code {exit_code}, skipping."
                 )
                 raise AssertionError()
 
-        # Get sequencing summary file
-        glob_summary = glob.glob(f"{self.run_abspath}/sequencing_summary*.txt")
-        assert len(glob_summary) == 1, f"Found {len(glob_summary)} summary files"
-        summary = glob_summary[0]
-
-        # Determine the format of the raw sequencing data, sorted by preference
-        raw_data_dir_options = [
-            "pod5_pass",
-            "pod5",
-            "fast5_pass",
-            "fast5",
-        ]
-        raw_data_path = None
-        for raw_data_dir_option in raw_data_dir_options:
-            if os.path.exists(f"{self.run_abspath}/{raw_data_dir_option}"):
-                raw_data_path = f"{self.run_abspath}/{raw_data_dir_option}"
-                raw_data_format = "pod5" if "pod5" in raw_data_dir_option else "fast5"
-                break
-        if raw_data_path is None:
-            raise AssertionError(f"No seq data found in {self.run_abspath}")
-
-        # Load samplesheet, if any
-        ss_glob = glob.glob(f"{self.run_abspath}/sample_sheet*.csv")
-        if len(ss_glob) == 0:
-            samplesheet = None
-        elif len(ss_glob) > 1:
-            # If multiple samplesheets, use latest one
-            samplesheet = ss_glob.sort()[-1]
-            logging.info(
-                f"{self.run_name}: Multiple samplesheets found, using latest '{samplesheet}'"
-            )
         else:
-            samplesheet = ss_glob[0]
+            # Run ToulligQC
 
-        # Determine barcodes
-        if samplesheet:
-            ss_df = pd.read_csv(samplesheet)
-            if "barcode" in ss_df.columns:
-                ss_barcodes = list(ss_df["barcode"].unique())
-                ss_barcodes.sort()
-                barcode_nums = [int(bc[-2:]) for bc in ss_barcodes]
-                # If barcodes are numbered sequentially, write arg as range
-                if barcode_nums == list(range(barcode_nums[0], barcode_nums[-1] + 1)):
-                    barcodes_arg = f"{ss_barcodes[0]}:{ss_barcodes[-1]}"
-                else:
-                    barcodes_arg = ":".join(ss_barcodes)
+            # Get sequencing summary file
+            glob_summary = glob.glob(f"{self.run_abspath}/sequencing_summary*.txt")
+            assert len(glob_summary) == 1, f"Found {len(glob_summary)} summary files"
+            summary = glob_summary[0]
+
+            # Determine the format of the raw sequencing data, sorted by preference
+            raw_data_dir_options = [
+                "pod5_pass",
+                "pod5",
+                "fast5_pass",
+                "fast5",
+            ]
+            raw_data_path = None
+            for raw_data_dir_option in raw_data_dir_options:
+                if os.path.exists(f"{self.run_abspath}/{raw_data_dir_option}"):
+                    raw_data_path = f"{self.run_abspath}/{raw_data_dir_option}"
+                    raw_data_format = (
+                        "pod5" if "pod5" in raw_data_dir_option else "fast5"
+                    )
+                    break
+            if raw_data_path is None:
+                raise AssertionError(f"No seq data found in {self.run_abspath}")
+
+            # Load samplesheet, if any
+            ss_glob = glob.glob(f"{self.run_abspath}/sample_sheet*.csv")
+            if len(ss_glob) == 0:
+                samplesheet = None
+            elif len(ss_glob) > 1:
+                # If multiple samplesheets, use latest one
+                samplesheet = ss_glob.sort()[-1]
+                logging.info(
+                    f"{self.run_name}: Multiple samplesheets found, using latest '{samplesheet}'"
+                )
             else:
-                ss_barcodes = None
+                samplesheet = ss_glob[0]
 
-        command_args = {
-            "--sequencing-summary-source": summary,
-            f"--{raw_data_format}-source": raw_data_path,
-            "--output-directory": self.run_abspath,
-            "--report-name": report_dir_name,
-        }
-        if samplesheet and ss_barcodes:
-            command_args["--barcoding"] = ""
-            command_args["--samplesheet"] = samplesheet
-            command_args["--barcodes"] = barcodes_arg
+            # Determine barcodes
+            if samplesheet:
+                ss_df = pd.read_csv(samplesheet)
+                if "barcode" in ss_df.columns:
+                    ss_barcodes = list(ss_df["barcode"].unique())
+                    ss_barcodes.sort()
+                    barcode_nums = [int(bc[-2:]) for bc in ss_barcodes]
+                    # If barcodes are numbered sequentially, write arg as range
+                    if barcode_nums == list(
+                        range(barcode_nums[0], barcode_nums[-1] + 1)
+                    ):
+                        barcodes_arg = f"{ss_barcodes[0]}:{ss_barcodes[-1]}"
+                    else:
+                        barcodes_arg = ":".join(ss_barcodes)
+                else:
+                    ss_barcodes = None
 
-        # Build command list
-        command_list = [self.toulligqc_executable]
-        for k, v in command_args.items():
-            command_list.append(k)
-            if v:
-                command_list.append(v)
+            command_args = {
+                "--sequencing-summary-source": summary,
+                f"--{raw_data_format}-source": raw_data_path,
+                "--output-directory": self.run_abspath,
+                "--report-name": report_dir_name,
+            }
+            if samplesheet and ss_barcodes:
+                command_args["--barcoding"] = ""
+                command_args["--samplesheet"] = samplesheet
+                command_args["--barcodes"] = barcodes_arg
 
-        # Run the command
-        # Small enough to wait for, should be done in 1-5 minutes
-        process = subprocess.run(command_list)
+            # Build command list
+            command_list = [self.toulligqc_executable]
+            for k, v in command_args.items():
+                command_list.append(k)
+                if v:
+                    command_list.append(v)
 
-        # Dump exit status
-        with open(exit_code_path, "w") as f:
-            f.write(str(process.returncode))
+            # Run the command
+            # Small enough to wait for, should be done in 1-5 minutes
+            process = subprocess.run(command_list)
 
-        # Check if the command was successful
-        if process.returncode == 0:
-            logging.info(f"{self.run_name}: ToulligQC report generated successfully.")
-        else:
-            raise subprocess.CalledProcessError(process.returncode, command_list)
+            # Dump exit status
+            with open(exit_code_path, "w") as f:
+                f.write(str(process.returncode))
+
+            # Check if the command was successful
+            if process.returncode == 0:
+                logging.info(
+                    f"{self.run_name}: ToulligQC report generated successfully."
+                )
+            else:
+                raise subprocess.CalledProcessError(process.returncode, command_list)
 
         # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
         logger.info(
