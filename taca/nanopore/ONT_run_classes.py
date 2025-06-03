@@ -590,8 +590,8 @@ class ONT_run:
     @property
     def rsync_successful(self):
         with open(self.rsync_exit_file) as rsync_exit_file:
-            rsync_exit_status = rsync_exit_file.read()
-        if rsync_exit_status == "0":
+            rsync_exit_status = int(rsync_exit_file.read().strip())
+        if rsync_exit_status == 0:
             return True
         else:
             return False
