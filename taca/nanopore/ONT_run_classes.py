@@ -455,7 +455,7 @@ class ONT_run:
 
         # Dump exit status
         with open(exit_code_path, "w") as f:
-            f.write(process.returncode)
+            f.write(str(process.returncode))
 
         # Check if the command was successful
         if process.returncode == 0:
