@@ -58,18 +58,19 @@ class NanoporeFlowcell(Flowcell):
         # future todo: make a list of samples included in the tarball
         tar_err = os.path.join(self.organised_project_dir, "tar.err")
         with filesystem.chdir(self.incoming_path):
-            try:
-                with open(tar_err, "w") as error_file:
-                    tar_command = ["tar", "-cvf", self.tar_path, self.fc_id]
-                    result = subprocess.run(tar_command, stderr=error_file)
-                    logger.info(
-                        f"Finished making tarball for {self.fc_id}. Proceeding with md5sum."
+            with open(tar_err, "w") as error_file:
+                tar_command = ["tar", "-cvf", self.tar_path, self.fc_id]
+                result = subprocess.run(tar_command, stderr=error_file)
+                if result.returncode != 0:
+                    logger.error(
+                        f"An error occurred during tarring of {self.fc_id}. Please check {tar_err} for more information."
                     )
-            except subprocess.CalledProcessError as e:
-                logger.error(
-                    f"An error occurred during tarring of {self.fc_id}. Please check {tar_err} for more information."
+                    raise subprocess.CalledProcessError(
+                        returncode=result.returncode, cmd=tar_command
+                    )
+                logger.info(
+                    f"Finished making tarball for {self.fc_id}. Proceeding with md5sum."
                 )
-                raise e
         with filesystem.chdir(self.organised_project_dir):
             try:
                 md5_command = ["md5sum", self.tar_file]
