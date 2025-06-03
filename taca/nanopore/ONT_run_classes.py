@@ -372,9 +372,9 @@ class ONT_run:
             with open(exit_code_path) as f:
                 exit_code = int(f.read().strip())
             if exit_code == 0:
-                logging.info(f"{self.run_name}: ToulligQC report already generated.")
+                logger.info(f"{self.run_name}: ToulligQC report already generated.")
             else:
-                logging.error(
+                logger.error(
                     f"{self.run_name}: ToulligQC report generation failed with exit code {exit_code}, skipping."
                 )
                 raise AssertionError()
@@ -412,7 +412,7 @@ class ONT_run:
             elif len(ss_glob) > 1:
                 # If multiple samplesheets, use latest one
                 samplesheet = ss_glob.sort()[-1]
-                logging.info(
+                logger.info(
                     f"{self.run_name}: Multiple samplesheets found, using latest '{samplesheet}'"
                 )
             else:
@@ -463,7 +463,7 @@ class ONT_run:
 
             # Check if the command was successful
             if process.returncode == 0:
-                logging.info(
+                logger.info(
                     f"{self.run_name}: ToulligQC report generated successfully."
                 )
             else:
@@ -601,5 +601,5 @@ class ONT_run:
         src = self.run_abspath
         dst = os.path.join(self.run_abspath, os.pardir, "nosync")
 
-        logging.info(f"{self.run_name}: Moving run from {src} to {dst}...")
+        logger.info(f"{self.run_name}: Moving run from {src} to {dst}...")
         shutil.move(src, dst)
