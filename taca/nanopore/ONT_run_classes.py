@@ -370,8 +370,8 @@ class ONT_run:
         # Do not run this function if it's output dir exists in the run dir
         if os.path.exists(exit_code_path):
             with open(exit_code_path) as f:
-                exit_code = f.read()
-            if exit_code == "0":
+                exit_code = int(f.read().strip())
+            if exit_code == 0:
                 logging.info(
                     f"{self.run_name}: ToulligQC report already generated, skipping."
                 )
