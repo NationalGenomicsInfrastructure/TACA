@@ -1,6 +1,11 @@
-"""This is a stand-alone script run on ONT instrument computers. It transfers new ONT runs to NAS using rsync."""
+#!/usr/bin/env python3
 
-__version__ = "1.0.14"
+"""This is a stand-alone script run on ONT instrument computers to handle ONT runs.
+It handles metadata file creation, syncing to storage, local archiving and cleanup.
+The script is written in pure Python to avoid installing external dependencies.
+"""
+
+__version__ = "1.0.15"
 
 import argparse
 import logging
@@ -10,6 +15,7 @@ import shutil
 import subprocess
 from datetime import datetime as dt
 from glob import glob
+from pathlib import Path
 
 RUN_PATTERN = re.compile(
     # Run folder name expected as yyyymmdd_HHMM_positionOrInstrument_flowCellId_randomHash
@@ -22,104 +28,88 @@ def main(args):
     """Find ONT runs and transfer them to storage.
     Archives the run when the transfer is complete."""
 
-    logging.basicConfig(
-        filename=args.log_path,
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
+    # Start script
+    logging.info(f"Starting script version {__version__}.")
 
-    logging.info("Starting script...")
+    run_paths = find_runs(dir_to_search=args.prom_runs, exclude_dirs=args.exclude_dirs)
 
-    rsync_log = os.path.join(args.source_dir, "rsync_log.txt")
+    if run_paths:
+        handle_runs(run_paths=run_paths, args=args)
 
-    logging.info("Parsing instrument position logs...")
-    position_logs = parse_position_logs(args.minknow_logs_dir)
-    logging.info("Subsetting QC and MUX metrics...")
-    pore_counts = get_pore_counts(position_logs)
-
-    handle_runs(pore_counts, args, rsync_log)
-    delete_archived_runs(args)
+    delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
 
 
-def handle_runs(pore_counts, args, rsync_log):
-    logging.info("Finding runs...")
+def find_runs(dir_to_search, exclude_dirs):
+    logging.info(f"Finding runs at {dir_to_search}, excluding {exclude_dirs}...")
     # Look for dirs matching run pattern 3 levels deep from source, excluding certain dirs
-    exclude_dirs = ["nosync", "keep_data", "cg_data"]
     run_paths = [
         path
-        for path in glob(os.path.join(args.source_dir, "*", "*", "*"), recursive=True)
+        for path in glob(os.path.join(dir_to_search, "*", "*", "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
         and path.split(os.sep)[-3] not in exclude_dirs
     ]
     logging.info(f"Found {len(run_paths)} runs...")
+    return run_paths
+
+
+def handle_runs(run_paths, args):
+    position_logs = parse_position_logs(args.minknow_logs)
+    pore_counts = get_pore_counts(position_logs)
 
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"Handling {run_path}...")
+        logging.info(f"Processing run at '{run_path}'")
 
-        experiment_name = run_path.split(os.sep)[-3]
-        sample_name = run_path.split(os.sep)[-2]
-        if sample_name[0:3] == "QC_" or experiment_name[0:3] == "QC_":
-            logging.info("Run categorized as QC.")
-            rsync_dest = args.dest_dir_qc
-        else:
-            rsync_dest = args.dest_dir
-
-        logging.info("Dumping run path...")
         dump_path(run_path)
-        logging.info("Dumping QC and MUX history...")
-        dump_pore_count_history(run_path, pore_counts)
+        dump_pore_count_history(run_path=run_path, pore_counts=pore_counts)
 
         if not sequencing_finished(run_path):
-            sync_to_storage(run_path, rsync_dest, rsync_log)
+            sync_to_storage(
+                run_path=run_path,
+                destination=args.nas_runs,
+                rsync_log=args.rsync_log,
+                background=True,
+            )
+            sync_to_storage(
+                run_path=run_path,
+                destination=args.miarka_runs,
+                rsync_log=args.rsync_log,
+                background=True,
+                settings=args.miarka_settings,
+            )
         else:
-            final_sync_to_storage(run_path, rsync_dest, args.archive_dir, rsync_log)
+            dump_size(run_path)
+            final_sync_and_archive(run_path, args)
 
 
-def delete_archived_runs(args):
+def delete_archived_runs(prom_archive, nas_runs):
     logging.info("Finding locally archived runs...")
     # Look for dirs matching run pattern inside archive dir
     run_paths = [
         path
-        for path in glob(os.path.join(args.archive_dir, "*", "*", "*"), recursive=True)
+        for path in glob(os.path.join(prom_archive, "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} locally archived runs...")
 
     preproc_archive_contents = set(
-        os.listdir(os.path.join(args.dest_dir, "nosync"))
-        + os.listdir(os.path.join(args.dest_dir, "nosync", "archived"))
+        os.listdir(os.path.join(nas_runs, "nosync"))
+        + os.listdir(os.path.join(nas_runs, "nosync", "archived"))
     )
     # Iterate over runs
     for run_path in run_paths:
-        logging.info(f"Handling locally archived run {run_path}...")
+        logging.info(f"{os.path.basename(run_path)}: Processing archived run...")
         run_name = os.path.basename(run_path)
 
         if run_name in preproc_archive_contents:
             logging.info(
-                f"Locally archived run {run_path} was found in the preproc archive. Deleting..."
+                f"{os.path.basename(run_path)}: Found in the preproc archive. Deleting..."
             )
             shutil.rmtree(run_path)
         else:
             logging.info(
-                f"Locally archived run {run_path} was not found in the preproc archive. Skipping..."
+                f"{os.path.basename(run_path)}: Not found in the preproc archive. Skipping..."
             )
-            continue
-
-    # Remove empty dirs
-    sample_dirs = set([os.path.dirname(run_path) for run_path in run_paths])
-    experiment_dirs = set([os.path.dirname(sample_dir) for sample_dir in sample_dirs])
-
-    for sample_dir in sample_dirs:
-        if not os.listdir(sample_dir):
-            logging.info(f"Removing empty dir '{sample_dir}'.")
-            os.rmdir(sample_dir)
-
-    # Remove empty experiment dirs
-    for experiment_dir in experiment_dirs:
-        if not os.listdir(experiment_dir):
-            logging.info(f"Removing empty dir '{experiment_dir}'.")
-            os.rmdir(experiment_dir)
 
 
 def sequencing_finished(run_path: str) -> bool:
@@ -131,103 +121,173 @@ def sequencing_finished(run_path: str) -> bool:
     return False
 
 
+def dump_size(run_path: str):
+    target_file = os.path.join(run_path, "run_size.txt")
+    if not os.path.exists(target_file):
+        logging.info(f"{os.path.basename(run_path)}: Dumping run size...")
+        try:
+            # Run du command and capture output
+            du_output = subprocess.check_output(["du", "-sh", run_path], text=True)
+            # Extract just the size
+            size = du_output.split()[0]
+            # Write to file
+            with open(target_file, "w") as f:
+                f.write(size)
+        except subprocess.CalledProcessError as e:
+            logging.error(
+                f"{os.path.basename(run_path)}: Failed to dump run size with error code {e.returncode}."
+            )
+
+
 def dump_path(run_path: str):
     """Dump path <minknow_experiment_id>/<minknow_sample_id>/<minknow_run_id>
     to a file. Used for transferring info on ongoing runs to StatusDB."""
-    new_file = os.path.join(run_path, "run_path.txt")
+    target_file = os.path.join(run_path, "run_path.txt")
     proj, sample, run = run_path.split(os.sep)[-3:]
     path_to_write = os.path.join(proj, sample, run)
-    with open(new_file, "w") as f:
-        f.write(path_to_write)
-    return path_to_write
+    if not os.path.exists(target_file):
+        logging.info(f"{os.path.basename(run_path)}: Dumping run path...")
+        with open(target_file, "w") as f:
+            f.write(path_to_write)
 
 
 def write_finished_indicator(run_path):
     """Write a hidden file to indicate
-    when the finial rsync is finished."""
+    when the final rsync is finished."""
     finished_indicator = ".sync_finished"
     new_file_path = os.path.join(run_path, finished_indicator)
-    open(new_file_path, "w").close()
+    Path(new_file_path).touch(exist_ok=True)
     return new_file_path
 
 
-def sync_to_storage(run_dir: str, destination: str, rsync_log: str):
+def rsync_is_running(src, dst):
+    """Check if rsync is already running for given src and dst."""
+    pattern = f"rsync.*{src}.*{dst}"
+    try:
+        subprocess.check_output(["pgrep", "-f", pattern])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def sync_to_storage(
+    run_path: str,
+    destination: str,
+    rsync_log: str,
+    background: bool,
+    settings: list = [],
+):
     """Sync the run to storage using rsync.
     Skip if rsync is already running on the run."""
 
-    command = [
-        "run-one",
-        "rsync",
-        "-rvu",
-        "--log-file=" + rsync_log,
-        run_dir,
-        destination,
-    ]
-
-    p = subprocess.Popen(command)
-    logging.info(
-        f"Initiated rsync with PID {p.pid} and the following command: {command}"
+    command = (
+        [
+            "run-one",
+            "rsync",
+            "-auq",
+            "--log-file=" + rsync_log,
+        ]
+        + settings
+        + [
+            run_path,
+            destination,
+        ]
     )
 
-
-def final_sync_to_storage(
-    run_dir: str, destination: str, archive_dir: str, rsync_log: str
-):
-    """Do a final sync of the run to storage, then archive it.
-    Skip if rsync is already running on the run."""
-
-    logging.info(f"Performing a final sync of {run_dir} to storage")
-
-    command = [
-        "run-one",
-        "rsync",
-        "-rvu",
-        "--log-file=" + rsync_log,
-        run_dir,
-        destination,
-    ]
-
-    p = subprocess.run(command)
-
-    if p.returncode == 0:
-        finished_indicator_path = write_finished_indicator(run_dir)
-        dest = os.path.join(destination, os.path.basename(run_dir))
-        sync_finished_indicator_command = ["rsync", finished_indicator_path, dest]
-        p = subprocess.run(sync_finished_indicator_command)
-        archive_finished_run(run_dir, archive_dir)
-    else:
+    if rsync_is_running(src=run_path, dst=destination):
         logging.info(
-            f"Previous rsync might be running still. Skipping {run_dir} for now."
+            f"{os.path.basename(run_path)}: Rsync to {destination} is already running, skipping."
+        )
+        return False
+    else:
+        if background:
+            p_background = subprocess.Popen(command)
+            logging.info(
+                f"{os.path.basename(run_path)}: Started background rsync to {destination}"
+                + f" with PID {p_background.pid} and the following command: '{' '.join(command)}'"
+            )
+        else:
+            logging.info(
+                f"{os.path.basename(run_path)}: Starting final rsync to {destination}"
+                + f" with the following command: '{' '.join(command)}'"
+            )
+            p_foreground = subprocess.run(command)
+            if p_foreground.returncode == 0:
+                logging.info(
+                    f"{os.path.basename(run_path)}: Rsync to {destination} finished successfully."
+                )
+                return True
+            else:
+                logging.error(
+                    f"{os.path.basename(run_path)}: Rsync to {destination} failed with error code {p_foreground.returncode}."
+                )
+                return False
+
+
+def final_sync_and_archive(
+    run_path: str,
+    args,
+):
+    """Do a final sync of the run to storage, then archive it."""
+
+    logging.info(f"{os.path.basename(run_path)}: Performing a final sync to storage...")
+
+    if sync_to_storage(
+        run_path=run_path,
+        destination=args.nas_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+    ) and sync_to_storage(
+        run_path=run_path,
+        destination=args.miarka_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+        settings=args.miarka_settings,
+    ):
+        logging.info(
+            f"{os.path.basename(run_path)}: All rsyncs finished successfully, syncing finished indicator..."
+        )
+    else:
+        logging.error(
+            f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
         )
         return
 
+    logging.info(f"{os.path.basename(run_path)}: Creating and syncing indicator file.")
+    write_finished_indicator(run_path)
 
-def archive_finished_run(run_dir: str, archive_dir: str):
+    if sync_to_storage(
+        run_path=run_path,
+        destination=args.nas_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+    ) and sync_to_storage(
+        run_path=run_path,
+        destination=args.miarka_runs,
+        rsync_log=args.rsync_log,
+        background=False,
+        settings=args.miarka_settings,
+    ):
+        logging.info(
+            f"{os.path.basename(run_path)}: Indicator file synced successfully, archiving run..."
+        )
+        archive_finished_run(run_path, args.prom_archive)
+        logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
+    else:
+        logging.error(
+            f"{os.path.basename(run_path)}: Rsync failed, aborting run archiving."
+        )
+
+
+def archive_finished_run(run_path: str, prom_archive: str):
     """Move finished run to archive (nosync)."""
 
-    logging.info(f"Archiving {run_dir}.")
-
-    sample_dir = os.path.dirname(run_dir)
+    sample_dir = os.path.dirname(run_path)
     exp_dir = os.path.dirname(sample_dir)
 
-    os.path.basename(run_dir)
-    sample_name = os.path.basename(sample_dir)
-    exp_name = os.path.basename(exp_dir)
-
-    # Create archive experiment group dir, if none
-    if not os.path.exists(os.path.join(archive_dir, exp_name)):
-        logging.info(f"Creating {os.path.join(archive_dir, exp_name)}.")
-        os.mkdir(os.path.join(archive_dir, exp_name))
-    # Create archive sample dir, if none
-    if not os.path.exists(os.path.join(archive_dir, exp_name, sample_name)):
-        logging.info(f"Creating {os.path.join(archive_dir, exp_name, sample_name)}.")
-        os.mkdir(os.path.join(archive_dir, exp_name, sample_name))
-
-    # Archive run
-    logging.info(
-        f"Archiving {run_dir} to {os.path.join(archive_dir, exp_name, sample_name)}."
-    )
-    shutil.move(run_dir, os.path.join(archive_dir, exp_name, sample_name))
+    logging.info(f"{os.path.basename(run_path)}: Archiving to {prom_archive}.")
+    shutil.move(run_path, prom_archive)
+    logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
 
     # Remove sample dir, if empty
     if not os.listdir(sample_dir):
@@ -247,8 +307,8 @@ def archive_finished_run(run_dir: str, archive_dir: str):
         )
 
 
-def parse_position_logs(minknow_logs_dir: str) -> list:
-    """Look through all position logs and boil down into a structured list of dicts
+def parse_position_logs(minknow_logs: str) -> list:
+    """Look through position logs and boil down into a structured list of dicts
 
     Example output:
     [{
@@ -261,7 +321,6 @@ def parse_position_logs(minknow_logs_dir: str) -> list:
     } ... ]
 
     """
-
     # MinION
     positions = ["MN19414"]
     # PromethION
@@ -269,74 +328,74 @@ def parse_position_logs(minknow_logs_dir: str) -> list:
         for row in "ABCDEFGH":
             positions.append(col + row)
 
-    headers = []
-    header: dict | None = None
+    log_entries = []
+    current_entry: dict | None = None
     for position in positions:
         log_files = glob(
-            os.path.join(minknow_logs_dir, position, "control_server_log-*.txt")
+            os.path.join(minknow_logs, position, "control_server_log-*.txt")
         )
 
-        if log_files:
-            log_files.sort()
+        if not log_files:
+            continue
 
-            for log_file in log_files:
-                with open(log_file) as stream:
-                    lines = stream.readlines()
+        for log_file in log_files:
+            with open(log_file) as stream:
+                lines = stream.readlines()
 
-                    # Iterate across log lines
-                    for line in lines:
-                        if not line[0:4] == "    ":
-                            # Line is log header
-                            split_header = line.split(" ")
-                            timestamp = " ".join(split_header[0:2])
-                            category = " ".join(split_header[2:])
+                # Iterate across log lines
+                for line in lines:
+                    if not line[0:4] == "    ":
+                        # Line is log header
+                        split_header = line.split(" ")
+                        timestamp = " ".join(split_header[0:2])
+                        category = " ".join(split_header[2:])
 
-                            header = {
-                                "position": position,
-                                "timestamp": timestamp.strip(),
-                                "category": category.strip(),
-                            }
-                            headers.append(header)
+                        current_entry = {
+                            "position": position,
+                            "timestamp": timestamp.strip(),
+                            "category": category.strip(),
+                        }
+                        log_entries.append(current_entry)
 
-                        elif header:
-                            # Line is log body
-                            if "body" not in header.keys():
-                                body: dict = {}
-                                header["body"] = body
-                            key = line.split(": ")[0].strip()
-                            val = ": ".join(line.split(": ")[1:]).strip()
-                            header["body"][key] = val
+                    elif current_entry:
+                        # Line is log body
+                        if "body" not in current_entry.keys():
+                            body: dict = {}
+                            current_entry["body"] = body
+                        key = line.split(": ")[0].strip()
+                        val = ": ".join(line.split(": ")[1:]).strip()
+                        current_entry["body"][key] = val
 
-    headers.sort(key=lambda x: x["timestamp"])
-    logging.info(f"Parsed {len(headers)} log entries.")
+    log_entries.sort(key=lambda x: x["timestamp"])
+    logging.info(f"Parsed {len(log_entries)} log entries.")
 
-    return headers
+    return log_entries
 
 
 def get_pore_counts(position_logs: list) -> list:
-    """Take the flowcell log list output by parse_position_logs() and subset to contain only QC and MUX info."""
+    f"""Take the flowcell log list output by {parse_position_logs.__name__} and subset to contain only QC and MUX info."""
 
     pore_counts = []
     for entry in position_logs:
         if "INFO: platform_qc.report (user_messages)" in entry["category"]:
-            type = "qc"
+            entry_type = "qc"
         elif "INFO: mux_scan_result (user_messages)" in entry["category"]:
-            type = "mux"
+            entry_type = "mux"
         else:
-            type = "other"
+            entry_type = "other"
 
-        if type in ["qc", "mux"]:
+        if entry_type in ["qc", "mux"]:
             new_entry = {
                 "flow_cell_id": entry["body"]["flow_cell_id"],
                 "timestamp": entry["timestamp"],
                 "position": entry["position"],
-                "type": type,
+                "type": entry_type,
                 "num_pores": entry["body"]["num_pores"],
             }
 
             new_entry["total_pores"] = (
                 entry["body"]["num_pores"]
-                if type == "qc"
+                if entry_type == "qc"
                 else entry["body"]["total_pores"]
             )
 
@@ -347,78 +406,146 @@ def get_pore_counts(position_logs: list) -> list:
     return pore_counts
 
 
-def dump_pore_count_history(run: str, pore_counts: list) -> str:
+def dump_pore_count_history(run_path: str, pore_counts: list):
     """For a recently started run, dump all QC and MUX events that the instrument remembers
     for the flow cell as a file in the run dir."""
 
-    flowcell_id = os.path.basename(run).split("_")[-2]
-    run_start_time = dt.strptime(os.path.basename(run)[0:13], "%Y%m%d_%H%M")
+    flowcell_id = os.path.basename(run_path).split("_")[-2]
+    run_start_time = dt.strptime(os.path.basename(run_path)[0:13], "%Y%m%d_%H%M")
     log_time_pattern = "%Y-%m-%d %H:%M:%S.%f"
 
-    new_file_path = os.path.join(run, "pore_count_history.csv")
+    target_file = os.path.join(run_path, "pore_count_history.csv")
 
-    flowcell_pore_counts = [
-        log_entry
-        for log_entry in pore_counts
-        if (
-            log_entry["flow_cell_id"] == flowcell_id
-            and dt.strptime(log_entry["timestamp"], log_time_pattern) <= run_start_time
-        )
-    ]
+    if not os.path.exists(target_file):
+        logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
+        flowcell_pore_counts = [
+            log_entry
+            for log_entry in pore_counts
+            if (
+                log_entry["flow_cell_id"] == flowcell_id
+                and dt.strptime(log_entry["timestamp"], log_time_pattern)
+                <= run_start_time
+            )
+        ]
 
-    if flowcell_pore_counts:
-        flowcell_pore_counts_sorted = sorted(
-            flowcell_pore_counts, key=lambda x: x["timestamp"], reverse=True
-        )
+        if flowcell_pore_counts:
+            flowcell_pore_counts_sorted = sorted(
+                flowcell_pore_counts, key=lambda x: x["timestamp"], reverse=True
+            )
 
-        header = flowcell_pore_counts_sorted[0].keys()
-        rows = [e.values() for e in flowcell_pore_counts_sorted]
+            header = flowcell_pore_counts_sorted[0].keys()
+            rows = [e.values() for e in flowcell_pore_counts_sorted]
 
-        with open(new_file_path, "w") as f:
-            f.write(",".join(header) + "\n")
-            for row in rows:
-                f.write(",".join(row) + "\n")
-    else:
-        # Create an empty file if there is not one already
-        if not os.path.exists(new_file_path):
-            open(new_file_path, "w").close()
+            with open(target_file, "w") as f:
+                f.write(",".join(header) + "\n")
+                for row in rows:
+                    f.write(",".join(row) + "\n")
+        else:
+            # Create an empty file if there is not one already
+            logging.info(
+                f"{os.path.basename(run_path)}: No QC or MUX events found, creating empty file."
+            )
+            Path(target_file).touch()
 
-    return new_file_path
+
+def valid_dir(path):
+    """Validate that a path exists and is a directory."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"Directory doesn't exist: {path}")
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"Not a directory: {path}")
+    return os.path.abspath(path)
 
 
-if __name__ == "__main__":  # pragma: no cover
+def valid_file(path):
+    """Validate that a path exists and is a file."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"File doesn't exist: {path}")
+    if not os.path.isfile(path):
+        raise argparse.ArgumentTypeError(f"Not a file: {path}")
+    return os.path.abspath(path)
+
+
+def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--source",
-        dest="source_dir",
-        help="Full path to directory containing runs to be synced.",
+        "--prom_runs",
+        required=True,
+        type=valid_dir,
+        help="Path to directory where ONT runs are created by the instrument.",
     )
     parser.add_argument(
-        "--dest",
-        dest="dest_dir",
-        help="Full path to destination directory to sync default runs to.",
+        "--exclude_dirs",
+        required=True,
+        type=lambda s: s.split(","),
+        help="Comma-separated names of dirs inside prom_runs to exclude from the search.",
     )
     parser.add_argument(
-        "--dest_qc",
-        dest="dest_dir_qc",
-        help="Full path to destination directory to sync QC runs to.",
+        "--nas_runs",
+        required=True,
+        type=valid_dir,
+        help="Path to NAS directory to sync ONT runs to.",
     )
     parser.add_argument(
-        "--archive",
-        dest="archive_dir",
-        help="Full path to directory containing runs to be synced.",
+        "--miarka_runs",
+        required=True,
+        type=str,  # Remote paths are not supported, use str
+        help="Remote path to Miarka directory to sync ONT runs to.",
+    )
+    parser.add_argument(
+        "--miarka_settings",
+        required=True,
+        type=lambda s: s.split(" "),
+        help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+    )
+    parser.add_argument(
+        "--prom_archive",
+        required=True,
+        type=valid_dir,
+        help="Path to local archive directory for ONT runs.",
     )
     parser.add_argument(
         "--minknow_logs",
-        dest="minknow_logs_dir",
-        help="Full path to the directory containing the MinKNOW position logs.",
+        required=True,
+        type=valid_dir,
+        help="Path to directory containing the MinKNOW position logs.",
     )
     parser.add_argument(
         "--log",
-        dest="log_path",
-        help="Full path to the script log file.",
+        required=True,
+        type=valid_file,
+        help="Path to script log file.",
+    )
+    parser.add_argument(
+        "--rsync_log",
+        required=True,
+        type=valid_file,
+        help="Path to rsync log file.",
     )
     parser.add_argument("--version", action="version", version=__version__)
-    args = parser.parse_args()
 
+    args = parser.parse_args()
+    return args
+
+
+def setup_logging(log_file):
+    # Set up logging
+    log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(console_handler)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    args = parse_args()
+    setup_logging(log_file=args.log)
     main(args)

@@ -19,11 +19,9 @@ def create_dirs():
         │   ├── transfer.tsv
         │   ├── transfer_aviti.tsv
         │   ├── transfer_minion.tsv
-        │   ├── transfer_minion_qc.tsv
         │   └── transfer_promethion.tsv
         ├── miarka
         │   ├── minion
-        │   │   └── qc
         │   └── promethion
         ├── ngi-internal
         │   ├── minknow_reports
@@ -40,7 +38,6 @@ def create_dirs():
         │   └── samplesheets
         │       ├── Aviti
         │       ├── NovaSeqXPlus
-        │       └── anglerfish
         └── ngi_data
             └── sequencing
                 ├── AV242106
@@ -55,8 +52,6 @@ def create_dirs():
                 │   └── nosync
                 ├── minion
                 │   ├── nosync
-                │   └── qc
-                │       └── nosync
                 └── promethion
                     └── nosync
 
@@ -73,7 +68,6 @@ def create_dirs():
     ## ONT
     os.makedirs(f"{tmp.name}/ngi_data/sequencing/promethion/nosync")
     os.makedirs(f"{tmp.name}/ngi_data/sequencing/minion/nosync")
-    os.makedirs(f"{tmp.name}/ngi_data/sequencing/minion/qc/nosync")
     ## Element
     os.makedirs(f"{tmp.name}/ngi_data/sequencing/AV242106/nosync")
 
@@ -90,7 +84,6 @@ def create_dirs():
     os.makedirs(f"{tmp.name}/ngi-nas-ns/Aviti_data")
 
     # Samplesheets
-    os.makedirs(f"{tmp.name}/ngi-nas-ns/samplesheets/anglerfish")
     os.makedirs(f"{tmp.name}/ngi-nas-ns/samplesheets/NovaSeqXPlus")
     os.makedirs(f"{tmp.name}/ngi-nas-ns/samplesheets/Aviti")
 
@@ -102,14 +95,12 @@ def create_dirs():
     os.makedirs(f"{tmp.name}/log")
     open(f"{tmp.name}/log/transfer_promethion.tsv", "w").close()
     open(f"{tmp.name}/log/transfer_minion.tsv", "w").close()
-    open(f"{tmp.name}/log/transfer_minion_qc.tsv", "w").close()
     open(f"{tmp.name}/log/transfer_aviti.tsv", "w").close()
     open(f"{tmp.name}/log/transfer.tsv", "w").close()
     open(f"{tmp.name}/log/taca.log", "w").close()
 
     # Analysis server destination dirs
     os.makedirs(f"{tmp.name}/miarka/promethion")
-    os.makedirs(f"{tmp.name}/miarka/minion/qc")
 
     # Indexes
     os.makedirs(f"{tmp.name}/config")

@@ -22,25 +22,17 @@ def parametrize_testruns():
     """
 
     parameter_string_table = """
-    desc            instrument qc    run_finished sync_finished fastq_dirs barcode_dirs anglerfish_samplesheets anglerfish_ongoing anglerfish_exit
-    prom_ongoing    promethion False False        False         False      False        False                   False              NA
-    prom_done       promethion False True         False         False      False        False                   False              NA
-    prom_synced     promethion False True         True          False      False        False                   False              NA
-    prom_fastq      promethion False True         True          True       False        False                   False              NA
-    prom_bcs        promethion False True         True          True       True         False                   False              NA
-    min_ongoing     minion     False False        False         False      False        False                   False              NA
-    min_done        minion     False True         False         False      False        False                   False              NA
-    min_synced      minion     False True         True          False      False        False                   False              NA
-    min_fastq       minion     False True         True          True       False        False                   False              NA
-    min_bcs         minion     False True         True          True       True         False                   False              NA
-    min_qc_ongoing  minion     True  False        False         False      False        False                   False              NA
-    min_qc_done     minion     True  True         False         False      False        False                   False              NA
-    min_qc_synced   minion     True  True         True          False      False        False                   False              NA
-    min_qc_fastq    minion     True  True         True          True       False        False                   False              NA
-    min_qc_bcs      minion     True  True         True          True       True         False                   False              NA
-    min_qc_ang_ss   minion     True  True         True          True       True         True                    False              NA
-    min_qc_ang_run  minion     True  True         True          True       True         True                    True               NA
-    min_qc_ang_done minion     True  True         True          True       True         True                    False              0
+    desc            instrument run_finished sync_finished fastq_dirs barcode_dirs
+    prom_ongoing    promethion False        False         False      False       
+    prom_done       promethion True         False         False      False       
+    prom_synced     promethion True         True          False      False       
+    prom_fastq      promethion True         True          True       False       
+    prom_bcs        promethion True         True          True       True        
+    min_ongoing     minion     False        False         False      False       
+    min_done        minion     True         False         False      False       
+    min_synced      minion     True         True          False      False       
+    min_fastq       minion     True         True          True       False       
+    min_bcs         minion     True         True          True       True        
     """
 
     # Turn string table to datastream
@@ -48,9 +40,6 @@ def parametrize_testruns():
 
     # Read data, trimming whitespace
     df = pd.read_csv(data, sep=r"\s+")
-
-    # Fix data types
-    df.anglerfish_exit = df.anglerfish_exit[df.anglerfish_exit.notna()].astype("Int64")
 
     # Replace nan(s) with None(s)
     df = df.replace(np.nan, None)
@@ -98,21 +87,6 @@ def test_ont_transfer(create_dirs, run_properties, caplog):
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_minknow_json").start()
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_pore_activity").start()
 
-    # Mock subprocess.Popen ONLY for Anglerfish
-    original_popen = subprocess.Popen
-
-    def mock_Popen_side_effect(*args, **kwargs):
-        if "anglerfish" in args[0]:
-            return mock_Popen
-        else:
-            return original_popen(*args, **kwargs)
-
-    mock_Popen = patch(
-        "taca.nanopore.ONT_run_classes.subprocess.Popen",
-        side_effect=mock_Popen_side_effect,
-    ).start()
-    mock_Popen.pid = 1337  # Nice
-
     # Mock subprocess.run ONLY for ToulligQC
     original_run = subprocess.run
 
@@ -135,23 +109,19 @@ def test_ont_transfer(create_dirs, run_properties, caplog):
     # Create run dir from testing parameters
     create_ONT_run_dir(
         tmp,
-        qc=run_properties.pop("qc"),
         instrument=run_properties.pop("instrument"),
         script_files=True,
         run_finished=run_properties.pop("run_finished"),
         sync_finished=run_properties.pop("sync_finished"),
         fastq_dirs=run_properties.pop("fastq_dirs"),
         barcode_dirs=run_properties.pop("barcode_dirs"),
-        anglerfish_samplesheets=run_properties.pop("anglerfish_samplesheets"),
-        anglerfish_ongoing=run_properties.pop("anglerfish_ongoing"),
-        anglerfish_exit=run_properties.pop("anglerfish_exit"),
     )
 
     # Make sure we used everything
     assert not run_properties
 
     # Start testing
-    analysis_nanopore.ont_transfer(run_abspath=None, qc=False)
+    analysis_nanopore.ont_transfer(run_abspath=None)
 
     # Stop mocks
     patch.stopall()

@@ -106,20 +106,12 @@ def element_updatedb(run):
     default=None,
     help="Process only a particular run",
 )
-@click.option(
-    "-q",
-    "--qc",
-    is_flag=True,
-    default=False,
-    help="Specified run is a QC run, ignored if --run is not given",
-)
-def ont_transfer(run, qc):
+def ont_transfer(run):
     """Find and process all runs"""
-    analysis_nanopore.ont_transfer(run, qc)
+    analysis_nanopore.ont_transfer(run)
 
 
 @analysis.command()
 @click.argument("run")
 def ont_updatedb(run):
-    """Update the database, regardless of run status"""
     analysis_nanopore.ont_updatedb(run)

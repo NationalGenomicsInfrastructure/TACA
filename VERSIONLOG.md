@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250603.1
+
+Misc. improvements to ONT processing.
+
 ## 20250527.1
 
 Bugfix: Fail organisation of ONT data if tar fails

@@ -78,7 +78,6 @@ class TestMinION(unittest.TestCase):
         """Get location of lims sample sheet."""
         run_dir = "data/nanopore_data/run2/done_sequencing/20200102_1412_MN19414_AAU642_68125dc2"
         run = MinIONqc(run_dir, None, None)
-        run._get_anglerfish_samplesheet()
         expected_sample_sheet = "data/nanopore_samplesheets/2020/QC_SQK-LSK109_AAU642_Samplesheet_22-594126.csv"
         self.assertEqual(run.lims_samplesheet, expected_sample_sheet)
 
@@ -92,12 +91,6 @@ class TestMinION(unittest.TestCase):
             filecmp.cmp(
                 run.nanoseq_sample_sheet,
                 "data/nanopore_samplesheets/expected/SQK-LSK109_sample_sheet.csv",
-            )
-        )
-        self.assertTrue(
-            filecmp.cmp(
-                run.anglerfish_sample_sheet,
-                "data/nanopore_samplesheets/expected/anglerfish_sample_sheet.csv",
             )
         )
 
@@ -229,52 +222,3 @@ class TestMinION(unittest.TestCase):
                 "data/nanopore_data/run8/demux_failed/20200108_1412_MN19414_AAU648_68125dc2/.exitcode_for_nanoseq"
             )
         )
-
-    @mock.patch("taca.nanopore.minion.os.makedirs")
-    @mock.patch("taca.nanopore.minion.subprocess.Popen")
-    def test_start_anglerfish(self, mock_popen, mock_mkdir):
-        """Start Anglerfish."""
-        run_dir = "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2"
-        af_sample_sheet = "anglerfish_sample_sheet.csv"
-        run = MinIONqc(run_dir, None, af_sample_sheet)
-        run.start_anglerfish()
-        expected_parameters = (
-            "anglerfish.py"
-            + " --samplesheet anglerfish_sample_sheet.csv"
-            + " --out_fastq data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2/anglerfish_output"
-            + " --threads 2"
-            + " --skip_demux"
-            + " --skip_fastqc; echo $? > .exitcode_for_anglerfish"
-        )
-        mock_popen.assert_called_once_with(
-            expected_parameters, stdout=subprocess.PIPE, shell=True, cwd=run_dir
-        )
-
-    @mock.patch("taca.nanopore.minion.MinIONqc._find_anglerfish_results")
-    @mock.patch("taca.nanopore.minion.shutil.copyfile")
-    def test_copy_results_for_lims(self, mock_copy, mock_results):
-        """Copy Anglerfish results to lims."""
-        run_dir = "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2"
-        run = MinIONqc(run_dir, None, None)
-        anglerfish_results_path = "anglerfish_output"
-        anglerfish_results_file = os.path.join(
-            run_dir,
-            anglerfish_results_path,
-            "anglerfish_2020_09_23_141922",
-            "anglerfish_stats.txt",
-        )
-        lims_results_file = "some/dir/2020/anglerfish_stats_AAU644.txt"
-        mock_results.return_value = anglerfish_results_file
-        run.copy_results_for_lims()
-        mock_copy.assert_called_once_with(anglerfish_results_file, lims_results_file)
-
-    def test_find_anglerfish_results(self):
-        """Locate Anglerfish results file."""
-        anglerfish_dir = "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2/anglerfish_output"
-        run_dir = "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2"
-        run = MinIONqc(run_dir, None, None)
-        found_file = run._find_anglerfish_results()
-        expected_file = os.path.join(
-            anglerfish_dir, "anglerfish_2020_09_23_141922", "anglerfish_stats.txt"
-        )
-        self.assertEqual(expected_file, found_file)
