@@ -103,10 +103,9 @@ def process_run(run: ONT_run):
     elif run.transfer_status == "rsync failed":
         raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
     elif run.transfer_status == "transferred":
-        logger.warning(
+        raise WaitForRun(
             f"{run.run_name}: Run is already logged as transferred, skipping."
         )
-        raise WaitForRun("Run is already logged as transferred.")
     else:
         raise AssertionError(
             f"{run.run_name}: Undetermined transfer status, please investigate."
