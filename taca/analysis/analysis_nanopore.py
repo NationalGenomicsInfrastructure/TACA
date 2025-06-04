@@ -97,9 +97,9 @@ def process_run(run: ONT_run):
         raise WaitForRun(f"{run.run_name}: Transfer is ongoing, skipping.")
     elif run.transfer_status == "rsync done":
         logger.info(f"{run.run_name}: Transfer complete. Archiving...")
-        run.update_transfer_log()
         run.remove_transfer_indicator()
         run.archive_run()
+        run.update_transfer_log()
     elif run.transfer_status == "rsync failed":
         raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
     elif run.transfer_status == "transferred":
