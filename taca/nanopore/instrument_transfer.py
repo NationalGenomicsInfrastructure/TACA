@@ -52,16 +52,16 @@ def find_runs(dir_to_search, exclude_dirs):
     return run_paths
 
 
-def handle_runs(
-    run_paths,
-    args,
-):
+def handle_runs(run_paths, args):
+    position_logs = parse_position_logs(args.minknow_logs)
+    pore_counts = get_pore_counts(position_logs)
+
     # Iterate over runs
     for run_path in run_paths:
         logging.info(f"Processing run at '{run_path}'")
 
         dump_path(run_path)
-        dump_pore_count_history(run_path=run_path, minknow_logs=args.minknow_logs)
+        dump_pore_count_history(run_path=run_path, pore_counts=pore_counts)
 
         if not sequencing_finished(run_path):
             sync_to_storage(
@@ -307,7 +307,7 @@ def archive_finished_run(run_path: str, prom_archive: str):
         )
 
 
-def parse_position_logs(minknow_logs: str, position) -> list:
+def parse_position_logs(minknow_logs: str) -> list:
     """Look through position logs and boil down into a structured list of dicts
 
     Example output:
@@ -321,53 +321,59 @@ def parse_position_logs(minknow_logs: str, position) -> list:
     } ... ]
 
     """
-    logging.info(f"Parsing instrument logs for position {position}...")
+    # MinION
+    positions = ["MN19414"]
+    # PromethION
+    for col in "123":
+        for row in "ABCDEFGH":
+            positions.append(col + row)
 
-    headers = []
-    header = None
-    log_files = glob(os.path.join(minknow_logs, position, "control_server_log-*.txt"))
-    assert log_files, f"No log files found for position {position} in {minknow_logs}"
+    log_entries = []
+    current_entry: dict | None = None
+    for position in positions:
+        log_files = glob(
+            os.path.join(minknow_logs, position, "control_server_log-*.txt")
+        )
 
-    log_files.sort()
+        if not log_files:
+            continue
 
-    for log_file in log_files:
-        with open(log_file) as f:
-            lines = f.readlines()
+        for log_file in log_files:
+            with open(log_file) as stream:
+                lines = stream.readlines()
 
-        # Iterate across log lines
-        for line in lines:
-            if not line[0:4] == "    ":
-                # Line is log header
-                split_header = line.split(" ")
-                timestamp = " ".join(split_header[0:2])
-                category = " ".join(split_header[2:])
+                # Iterate across log lines
+                for line in lines:
+                    if not line[0:4] == "    ":
+                        # Line is log header
+                        split_header = line.split(" ")
+                        timestamp = " ".join(split_header[0:2])
+                        category = " ".join(split_header[2:])
 
-                header = {
-                    "position": position,
-                    "timestamp": timestamp.strip(),
-                    "category": category.strip(),
-                }
-                headers.append(header)
+                        current_entry = {
+                            "position": position,
+                            "timestamp": timestamp.strip(),
+                            "category": category.strip(),
+                        }
+                        log_entries.append(current_entry)
 
-            elif header:
-                # Line is log body
-                if "body" not in header.keys():
-                    body: dict = {}
-                    header["body"] = body
-                key = line.split(": ")[0].strip()
-                val = ": ".join(line.split(": ")[1:]).strip()
-                header["body"][key] = val
+                    elif current_entry:
+                        # Line is log body
+                        if "body" not in current_entry.keys():
+                            body: dict = {}
+                            current_entry["body"] = body
+                        key = line.split(": ")[0].strip()
+                        val = ": ".join(line.split(": ")[1:]).strip()
+                        current_entry["body"][key] = val
 
-    headers.sort(key=lambda x: x["timestamp"])
-    logging.info(f"Parsed {len(headers)} log entries.")
+    log_entries.sort(key=lambda x: x["timestamp"])
+    logging.info(f"Parsed {len(log_entries)} log entries.")
 
-    return headers
+    return log_entries
 
 
 def get_pore_counts(position_logs: list) -> list:
-    """Take the flowcell log list output by parse_position_logs() and subset to contain only QC and MUX info."""
-
-    logging.info("Subsetting QC and MUX metrics from position logs...")
+    f"""Take the flowcell log list output by {parse_position_logs.__name__} and subset to contain only QC and MUX info."""
 
     pore_counts = []
     for entry in position_logs:
@@ -400,23 +406,17 @@ def get_pore_counts(position_logs: list) -> list:
     return pore_counts
 
 
-def dump_pore_count_history(run_path: str, minknow_logs: str):
+def dump_pore_count_history(run_path: str, pore_counts: list):
     """For a recently started run, dump all QC and MUX events that the instrument remembers
     for the flow cell as a file in the run dir."""
 
     flowcell_id = os.path.basename(run_path).split("_")[-2]
-    position = os.path.basename(run_path).split("_")[-3]
     run_start_time = dt.strptime(os.path.basename(run_path)[0:13], "%Y%m%d_%H%M")
     log_time_pattern = "%Y-%m-%d %H:%M:%S.%f"
 
     target_file = os.path.join(run_path, "pore_count_history.csv")
 
     if not os.path.exists(target_file):
-        position_logs = parse_position_logs(
-            minknow_logs=minknow_logs, position=position
-        )
-        pore_counts = get_pore_counts(position_logs=position_logs)
-
         logging.info(f"{os.path.basename(run_path)}: Dumping QC and MUX history...")
         flowcell_pore_counts = [
             log_entry
