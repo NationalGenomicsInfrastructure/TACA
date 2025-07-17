@@ -40,7 +40,6 @@ As of now, we use:
 - [mypy](https://mypy.readthedocs.io/en/stable/) for static type checking and to prevent contradictory type annotation.
   - Run with `mypy **/*.py`
 - [pipreqs](https://github.com/bndr/pipreqs) to check that the requirement files are up-to-date with the code.
-
   - This is run with a custom Bash script in GitHub Actions which will only compare the list of package names.
 
     ```

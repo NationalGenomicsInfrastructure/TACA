@@ -267,7 +267,7 @@ class ElementRunsConnection(StatusdbSession):
         self.dbname = dbname
 
     def get_db_entry(self, run_id, get_doc=False):
-        query_result = self.application.cloudant.post_view(
+        query_result = self.connection.post_view(
             db=self.dbname,
             ddoc="info",
             view="id",
@@ -283,7 +283,7 @@ class ElementRunsConnection(StatusdbSession):
         return self.get_db_entry(run_id) is not None
 
     def check_db_run_status(self, run_name) -> str:
-        query_result = self.application.cloudant.post_view(
+        query_result = self.connection.post_view(
             db=self.dbname,
             ddoc="info",
             view="status",
