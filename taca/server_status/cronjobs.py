@@ -50,17 +50,22 @@ def update_cronjob_db():
         "Connecting to database: {}".format(CONFIG.get("statusdb", {}).get("url"))
     )
     try:
-        couch_connection = statusdb.StatusdbSession(statusdb_conf).connection
+        couch_connection = statusdb.StatusdbSession(statusdb_conf)
     except Exception as e:
         logging.error(e.message)
     else:
         # update document
-        crontab_db = couch_connection["cronjobs"]
-        view = crontab_db.view("server/alias")
+        view = couch_connection.connection.post_view(
+            db="cronjobs",
+            ddoc="server",
+            view="alias",
+            key=server,
+            include_docs=True,
+        ).get_result()
         # to be safe
         doc = {}
         # create doc if not exist
-        if not view[server].rows:
+        if not view["rows"]:
             logging.info("Creating a document")
             doc = {
                 "users": {user: cronjobs for user, cronjobs in result.items()},
@@ -68,14 +73,14 @@ def update_cronjob_db():
                 "server": server,
             }
         # else: get existing doc
-        for row in view[server]:
+        else:
             logging.info("Updating the document")
-            doc = crontab_db.get(row.value)
+            doc = view["rows"][0]["doc"]
             doc["users"].update(result)
             doc["Last updated"] = str(timestamp)
         if doc:
             try:
-                crontab_db.save(doc)
+                couch_connection.save_db_doc(doc=doc, db="cronjobs")
             except Exception as e:
                 logging.error(e.message)
             else:

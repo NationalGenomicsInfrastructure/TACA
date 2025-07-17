@@ -169,16 +169,20 @@ class Upload:
 
     def get_order_details(self):
         """Fetch order details from order portal"""
-        projects_db = self.status_db_connection.connection["projects"]
-        view = projects_db.view("order_portal/ProjectID_to_PortalID")
-        rows = view[self.project_id].rows
+        view = self.status_db_connection.connection.post_view(
+            db="projects",
+            ddoc="order_portal",
+            view="ProjectID_to_PortalID",
+            key=self.project_id,
+        ).get_result()
+        rows = view["rows"]
         if len(rows) < 1:
             raise AssertionError(f"Project {self.project_id} not found in StatusDB")
         if len(rows) > 1:
             raise AssertionError(
                 f"Project {self.project_id} has more than one entry in StatusDB orderportal_db"
             )
-        portal_id = rows[0].value
+        portal_id = rows[0]["value"]
         # Get project info from order portal API
         get_project_url = "{}/v1/order/{}".format(
             self.orderportal.get("orderportal_api_url"), portal_id

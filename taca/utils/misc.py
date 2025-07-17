@@ -230,16 +230,24 @@ def run_is_demuxed(run, couch_info=None, seq_run_type=None):
         run_fc = run_terms[-1]
         run_name = f"{run_date}_{run_fc}"
         try:
-            couch_connection = statusdb.StatusdbSession(couch_info).connection
-            fc_db = couch_connection[couch_info["xten_db"]]
-            for fc in fc_db.view("names/name", reduce=False, descending=True):
-                if fc.key != run_name:
-                    continue
-                fc_doc = fc_db.get(fc.id)
-                if not fc_doc or not fc_doc.get("illumina", {}).get(
-                    "Demultiplex_Stats", {}
-                ):
-                    return False
-                return True
+            couch_connection = statusdb.StatusdbSession(couch_info)
+            fc_doc_result = couch_connection.connection.post_view(
+                db=couch_info["xten_db"],
+                ddoc="names",
+                view="name",
+                key=run_name,
+                include_docs=True,
+                reduce=False,
+                descending=True,
+            ).get_result()["rows"]
+            if not fc_doc_result:
+                return False
+            fc_doc = fc_doc_result[0]["doc"]
+            if not fc_doc or not fc_doc.get("illumina", {}).get(
+                "Demultiplex_Stats", {}
+            ):
+                return False
+            return True
+
         except Exception as e:
             raise e

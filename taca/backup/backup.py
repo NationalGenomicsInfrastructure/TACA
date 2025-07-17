@@ -281,8 +281,7 @@ class backup_utils:
                 element_db_connection = statusdb.ElementRunsConnection(
                     self.couch_info, dbname="element_runs"
                 )
-                run_doc_id = element_db_connection.get_db_entry(run).value
-                run_doc = element_db_connection.db[run_doc_id]
+                run_doc = element_db_connection.get_db_entry(run)["doc"]
                 run_doc["pdc_archived"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 run_doc["run_status"] = "archived"
                 element_db_connection.upload_to_statusdb(run_doc)
@@ -298,15 +297,19 @@ class backup_utils:
                 else:
                     run_date = run_vals[0]
                 run_fc = f"{run_date}_{run_vals[-1]}"
-                couch_connection = statusdb.StatusdbSession(self.couch_info).connection
-                db = couch_connection[self.couch_info["db"]]
-                fc_names = {e.key: e.id for e in db.view("names/name", reduce=False)}
-                d_id = fc_names[run_fc]
-                doc = db.get(d_id)
+                couch_connection = statusdb.StatusdbSession(self.couch_info)
+                doc = couch_connection.connection.post_view(
+                    db=self.couch_info["db"],
+                    ddoc="names",
+                    view="name",
+                    key=run_fc,
+                    reduce=False,
+                    include_docs=True,
+                ).get_result()["rows"][0]["doc"]
                 doc["pdc_archived"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                db.save(doc)
+                couch_connection.save_db_doc(doc=doc, db=self.couch_info["db"])
                 logger.info(
-                    f'Logged "pdc_archived" timestamp for fc {run} in statusdb doc "{d_id}"'
+                    f'Logged "pdc_archived" timestamp for fc {run} in statusdb doc "{doc["_id"]}"'
                 )
             except:
                 logger.warning(
