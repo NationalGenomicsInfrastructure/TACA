@@ -32,11 +32,12 @@ class StatusdbSession:
         if db:
             self.dbname = db
 
-    def get_entry(self, name, use_id_view=False):
+    def get_entry(self, name, use_id_view=False, db=None):
         """Retrieve entry from a given db for a given name.
 
         :param name: unique name identifier (primary key, not the uuid)
         """
+        dbname = db or self.dbname
         if use_id_view:
             view = self.id_view
         else:
@@ -44,7 +45,7 @@ class StatusdbSession:
         if not view.get(name, None):
             return None
         return self.connection.get_document(
-            db=self.dbname, doc_id=view.get(name)
+            db=dbname, doc_id=view.get(name)
         ).get_result()
 
     def save_db_doc(self, doc, db=None):
