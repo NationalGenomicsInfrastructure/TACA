@@ -145,6 +145,10 @@ def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fi
     assert open(run_path + "/pore_count_history.csv").read() == (
         dedent("""
             flow_cell_id,timestamp,position,type,num_pores,total_pores
+            TEST12345,2024-01-01 01:01:01.01,MN19414,qc,1111,1111
+            TEST12345,2024-01-01 01:01:01.00,MN19414,mux,1110,1110
+            TEST12345,2024-01-01 01:00:01.01,MN19414,qc,1011,1011
+            TEST12345,2024-01-01 01:00:01.00,MN19414,mux,1010,1010
             TEST12345,2024-01-01 00:01:01.01,1A,qc,0111,0111
             TEST12345,2024-01-01 00:01:01.00,1A,mux,0110,0110
             TEST12345,2024-01-01 00:00:01.01,1A,qc,0011,0011
