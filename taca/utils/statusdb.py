@@ -55,43 +55,6 @@ class StatusdbSession:
         except Exception as e:
             raise Exception(f"Failed saving document due to {e}")
 
-    def get_project_flowcell(
-        self, project_id, open_date="2015-01-01", date_format="%Y-%m-%d"
-    ):
-        """From information available in flowcell db connection,
-        collect the flowcell this project was sequenced.
-
-        :param project_id: NGI project ID to get the flowcells
-        :param open_date: Open date of project to skip the check for all flowcells
-        :param date_format: The format of specified open_date
-        """
-        try:
-            open_date = datetime.strptime(open_date, date_format)
-        except:
-            open_date = datetime.strptime("2015-01-01", "%Y-%m-%d")
-
-        project_flowcells = {}
-        date_sorted_fcs = sorted(
-            list(self.proj_list.keys()),
-            key=lambda k: datetime.strptime(k.split("_")[0], "%y%m%d"),
-            reverse=True,
-        )
-        for fc in date_sorted_fcs:
-            fc_date, fc_name = fc.split("_")
-            if datetime.strptime(fc_date, "%y%m%d") < open_date:
-                break
-            if (
-                project_id in self.proj_list[fc]
-                and fc_name not in project_flowcells.keys()
-            ):
-                project_flowcells[fc_name] = {
-                    "name": fc_name,
-                    "run_name": fc,
-                    "date": fc_date,
-                    "db": self.dbname,
-                }
-        return project_flowcells
-
     def update_doc(self, dbname, obj, over_write_db_entry=False):
         view = self.connection.post_view(
             db=dbname,
@@ -148,7 +111,59 @@ class ProjectSummaryConnection(StatusdbSession):
         }
 
 
-class FlowcellRunMetricsConnection(StatusdbSession):
+class GenericFlowcellRunConnection(StatusdbSession):
+    def __init__(self, config, dbname=None):
+        super().__init__(config)
+        self.dbname = dbname
+        self.proj_list = {}
+
+    def get_project_flowcell(
+        self, project_id, open_date="2015-01-01", date_format="%Y-%m-%d", dbname=None
+    ):
+        """From information available in flowcell db connection,
+        collect the flowcell this project was sequenced.
+
+        :param project_id: NGI project ID to get the flowcells
+        :param open_date: Open date of project to skip the check for all flowcells
+        :param date_format: The format of specified open_date
+        """
+        proj_list = {}
+        if not self.proj_list and dbname:
+            proj_list = {
+                row["key"]: row["value"]
+                for row in self.connection.post_view(
+                    db=dbname, ddoc="names", view="project_ids_list", reduce=False
+                ).get_result()["rows"]
+                if row["key"]
+            }
+        else:
+            proj_list = self.proj_list
+        try:
+            open_date = datetime.strptime(open_date, date_format)
+        except:
+            open_date = datetime.strptime("2015-01-01", "%Y-%m-%d")
+
+        project_flowcells = {}
+        date_sorted_fcs = sorted(
+            list(proj_list.keys()),
+            key=lambda k: datetime.strptime(k.split("_")[0], "%y%m%d"),
+            reverse=True,
+        )
+        for fc in date_sorted_fcs:
+            fc_date, fc_name = fc.split("_")
+            if datetime.strptime(fc_date, "%y%m%d") < open_date:
+                break
+            if project_id in proj_list[fc] and fc_name not in project_flowcells.keys():
+                project_flowcells[fc_name] = {
+                    "name": fc_name,
+                    "run_name": fc,
+                    "date": fc_date,
+                    "db": dbname or self.dbname,
+                }
+        return project_flowcells
+
+
+class FlowcellRunMetricsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="flowcells"):
         super().__init__(config)
         self.dbname = dbname
@@ -167,7 +182,7 @@ class FlowcellRunMetricsConnection(StatusdbSession):
         }
 
 
-class X_FlowcellRunMetricsConnection(StatusdbSession):
+class X_FlowcellRunMetricsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="x_flowcells"):
         super().__init__(config)
         self.dbname = dbname
@@ -186,7 +201,7 @@ class X_FlowcellRunMetricsConnection(StatusdbSession):
         }
 
 
-class NanoporeRunsConnection(StatusdbSession):
+class NanoporeRunsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="nanopore_runs"):
         super().__init__(config)
         self.dbname = dbname
@@ -262,7 +277,7 @@ class NanoporeRunsConnection(StatusdbSession):
             )
 
 
-class ElementRunsConnection(StatusdbSession):
+class ElementRunsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="element_runs"):
         super().__init__(config)
         self.dbname = dbname
