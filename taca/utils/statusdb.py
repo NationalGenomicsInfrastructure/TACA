@@ -144,15 +144,29 @@ class GenericFlowcellRunConnection(StatusdbSession):
             open_date = datetime.strptime("2015-01-01", "%Y-%m-%d")
 
         project_flowcells = {}
+        time_format = (
+            "%y%m%d"
+            if (type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells")
+            else "%Y%m%d"
+        )
         date_sorted_fcs = sorted(
             list(proj_list.keys()),
-            key=lambda k: datetime.strptime(k.split("_")[0], "%y%m%d"),
+            key=lambda k: datetime.strptime(k.split("_")[0], time_format),
             reverse=True,
         )
         for fc in date_sorted_fcs:
-            fc_date, fc_name = fc.split("_")
-            if datetime.strptime(fc_date, "%y%m%d") < open_date:
+            if type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells":
+                fc_date, fc_name = fc.split("_")
+            elif type(self) is NanoporeRunsConnection or dbname == "nanopore_runs":
+                fc_date, fc_time, position, fc_name, fc_hash = fc.split(
+                    "_"
+                )  # 20220721_1216_1G_PAM62368_3ae8de85
+            elif type(self) is ElementRunsConnection or dbname == "element_runs":
+                fc_date, run_on, fc_name = fc.split("_")
+
+            if datetime.strptime(fc_date, time_format) < open_date:
                 break
+
             if project_id in proj_list[fc] and fc_name not in project_flowcells.keys():
                 project_flowcells[fc_name] = {
                     "name": fc_name,
