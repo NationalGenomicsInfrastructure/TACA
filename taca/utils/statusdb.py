@@ -16,7 +16,7 @@ class StatusdbSession:
         user = config.get("username")
         password = config.get("password")
         url = config.get("url")
-        display_url_string = "https://{}:{}@{}".format(user, "*********", url)
+        display_url_string = f"https://{user}:********@{url}"
         self.connection = cloudant_v1.CloudantV1(
             authenticator=CouchDbSessionAuthenticator(user, password)
         )
@@ -79,7 +79,7 @@ class StatusdbSession:
                     raise Exception(
                         f"Failed to update document in {dbname} with response: {response}"
                     )
-                logger.info("Updating {}".format(obj["name"]))
+                logger.info(f"Updating {obj['name']}")
         elif len(view["rows"]) == 0:
             response = self.connection.post_document(
                 db=dbname, document=obj
@@ -88,9 +88,9 @@ class StatusdbSession:
                 raise Exception(
                     f"Failed to create new document in {dbname} with response: {response}"
                 )
-            logger.info("Saving {}".format(obj["name"]))
+            logger.info(f"Saving {obj['name']}")
         else:
-            logger.warning("More than one row with name {} found".format(obj["name"]))
+            logger.warning(f"More than one row with name {obj['name']} found")
 
 
 class ProjectSummaryConnection(StatusdbSession):
