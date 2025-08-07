@@ -137,7 +137,7 @@ def update_statusdb(run_dir, inst_brand):
                             remote_id = num_rows[0]["id"]
                             remote_doc = couch_connection.get_document(
                                 db="bioinfo_analysis", doc_id=remote_id
-                            )
+                            ).get_result()
                             remote_doc_values = remote_doc["values"]
                             remote_status = remote_doc["status"]
                             # Only updates the listed statuses
