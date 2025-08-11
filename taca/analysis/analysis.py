@@ -105,13 +105,13 @@ def upload_to_statusdb(run_dir, software):
 
 
 def _upload_to_statusdb(run):
-    """Triggers the upload to statusdb using the dependency flowcell_parser.
+    """Triggers the upload to statusdb.
 
     :param Run run: the object run
     """
     couch_conf = CONFIG["statusdb"]
-    couch_connection = statusdb.StatusdbSession(couch_conf).connection
-    db = couch_connection[couch_conf["xten_db"]]
+    couch_connection = statusdb.StatusdbSession(couch_conf)
+    dbname = couch_conf["xten_db"]
     parser = run.runParserObj
     # Check if I have NoIndex lanes
     for element in parser.obj["samplesheet_csv"]:
@@ -163,13 +163,20 @@ def _upload_to_statusdb(run):
     else:
         run_date = run_vals[0]
     run_fc = f"{run_date}_{run_vals[-1]}"
-    db_rows = db.view("names/name", reduce=False, include_docs=True)[run_fc].rows
+    db_rows = couch_connection.connection.post_view(
+        db=dbname,
+        ddoc="names",
+        view="name",
+        key=run_fc,
+        reduce=False,
+        include_docs=True,
+    ).get_result()["rows"]
     if db_rows:
-        doc = db_rows[0].doc
+        doc = db_rows[0]["doc"]
         if doc.get("pdc_archived") and not parser.obj.get("pdc_archived"):
             parser.obj["pdc_archived"] = doc.get("pdc_archived")
 
-    statusdb.update_doc(db, parser.obj, over_write_db_entry=True)
+    couch_connection.update_doc(dbname, parser.obj, over_write_db_entry=True)
 
 
 def transfer_run(run_dir, software):

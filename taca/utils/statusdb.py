@@ -4,7 +4,7 @@ import csv
 import logging
 from datetime import datetime
 
-import couchdb
+from ibmcloudant import CouchDbSessionAuthenticator, cloudant_v1
 
 logger = logging.getLogger(__name__)
 
@@ -16,36 +16,109 @@ class StatusdbSession:
         user = config.get("username")
         password = config.get("password")
         url = config.get("url")
-        url_string = f"https://{user}:{password}@{url}"
-        display_url_string = "https://{}:{}@{}".format(user, "*********", url)
-        self.connection = couchdb.Server(url=url_string)
-        if not self.connection:
-            raise Exception(f"Couchdb connection failed for url {display_url_string}")
+        display_url_string = f"https://{user}:********@{url}"
+        self.connection = cloudant_v1.CloudantV1(
+            authenticator=CouchDbSessionAuthenticator(user, password)
+        )
+        self.connection.set_service_url(f"https://{url}")
+        try:
+            server_info = self.connection.get_server_information().get_result()
+            if not server_info:
+                raise Exception(f"Connection failed for URL {display_url_string}")
+        except Exception as e:
+            raise Exception(
+                f"Couchdb connection failed for URL {display_url_string} with error: {e}"
+            )
         if db:
-            self.db_connection = self.connection[db]
+            self.dbname = db
 
-    def get_entry(self, name, use_id_view=False):
+    def get_entry(self, name, use_id_view=False, db=None):
         """Retrieve entry from a given db for a given name.
 
         :param name: unique name identifier (primary key, not the uuid)
         """
+        dbname = db or self.dbname
         if use_id_view:
             view = self.id_view
         else:
             view = self.name_view
         if not view.get(name, None):
             return None
-        return self.db.get(view.get(name))
+        return self.connection.get_document(
+            db=dbname, doc_id=view.get(name)
+        ).get_result()
 
     def save_db_doc(self, doc, db=None):
         try:
-            db = db or self.db
-            db.save(doc)
+            dbname = db or self.dbname
+            self.connection.post_document(db=dbname, document=doc).get_result()
         except Exception as e:
             raise Exception(f"Failed saving document due to {e}")
 
+    def update_doc(self, dbname, obj, over_write_db_entry=False):
+        view = self.connection.post_view(
+            db=dbname,
+            ddoc="info",
+            view="name",
+            key=obj["name"],
+            include_docs=True,
+        ).get_result()
+        if len(view["rows"]) == 1:
+            remote_doc = view["rows"][0]["doc"]
+            doc_id = remote_doc.pop("_id")
+            doc_rev = remote_doc.pop("_rev")
+            if remote_doc != obj:
+                if not over_write_db_entry:
+                    obj = merge_dicts(obj, remote_doc)
+                obj["_id"] = doc_id
+                obj["_rev"] = doc_rev
+                response = self.connection.put_document(
+                    db=dbname, doc_id=doc_id, document=obj
+                ).get_result()
+                if not response.get("ok"):
+                    raise Exception(
+                        f"Failed to update document in {dbname} with response: {response}"
+                    )
+                logger.info(f"Updating {obj['name']}")
+        elif len(view["rows"]) == 0:
+            response = self.connection.post_document(
+                db=dbname, document=obj
+            ).get_result()
+            if not response.get("ok"):
+                raise Exception(
+                    f"Failed to create new document in {dbname} with response: {response}"
+                )
+            logger.info(f"Saving {obj['name']}")
+        else:
+            logger.warning(f"More than one row with name {obj['name']} found")
+
+
+class ProjectSummaryConnection(StatusdbSession):
+    def __init__(self, config, dbname="projects"):
+        super().__init__(config)
+        self.dbname = dbname
+        self.name_view = {
+            row["key"]: row["id"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="project", view="project_name", reduce=False
+            ).get_result()["rows"]
+        }
+        self.id_view = {
+            row["key"]: row["value"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="project", view="project_id", reduce=False
+            ).get_result()["rows"]
+        }
+
+
+class GenericFlowcellRunConnection(StatusdbSession):
+    def __init__(self, config, dbname=None):
+        super().__init__(config)
+        self.dbname = dbname
+        self.proj_list = {}
+
     def get_project_flowcell(
-        self, project_id, open_date="2015-01-01", date_format="%Y-%m-%d"
+        self, project_id, open_date="2015-01-01", date_format="%Y-%m-%d", dbname=None
     ):
         """From information available in flowcell db connection,
         collect the flowcell this project was sequenced.
@@ -54,86 +127,120 @@ class StatusdbSession:
         :param open_date: Open date of project to skip the check for all flowcells
         :param date_format: The format of specified open_date
         """
+        proj_list = {}
+        if not self.proj_list and dbname:
+            proj_list = {
+                row["key"]: row["value"]
+                for row in self.connection.post_view(
+                    db=dbname, ddoc="names", view="project_ids_list", reduce=False
+                ).get_result()["rows"]
+                if row["key"]
+            }
+        else:
+            proj_list = self.proj_list
         try:
             open_date = datetime.strptime(open_date, date_format)
         except:
             open_date = datetime.strptime("2015-01-01", "%Y-%m-%d")
 
         project_flowcells = {}
+        time_format = (
+            "%y%m%d"
+            if (type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells")
+            else "%Y%m%d"
+        )
         date_sorted_fcs = sorted(
-            list(self.proj_list.keys()),
-            key=lambda k: datetime.strptime(k.split("_")[0], "%y%m%d"),
+            list(proj_list.keys()),
+            key=lambda k: datetime.strptime(k.split("_")[0], time_format),
             reverse=True,
         )
         for fc in date_sorted_fcs:
-            fc_date, fc_name = fc.split("_")
-            if datetime.strptime(fc_date, "%y%m%d") < open_date:
+            if type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells":
+                fc_date, fc_name = fc.split("_")
+            elif type(self) is NanoporeRunsConnection or dbname == "nanopore_runs":
+                fc_date, fc_time, position, fc_name, fc_hash = fc.split(
+                    "_"
+                )  # 20220721_1216_1G_PAM62368_3ae8de85
+            elif type(self) is ElementRunsConnection or dbname == "element_runs":
+                fc_date, run_on, fc_name = fc.split("_")
+
+            if datetime.strptime(fc_date, time_format) < open_date:
                 break
-            if (
-                project_id in self.proj_list[fc]
-                and fc_name not in project_flowcells.keys()
-            ):
+
+            if project_id in proj_list[fc] and fc_name not in project_flowcells.keys():
                 project_flowcells[fc_name] = {
                     "name": fc_name,
                     "run_name": fc,
                     "date": fc_date,
-                    "db": self.db.name,
+                    "db": dbname or self.dbname,
                 }
         return project_flowcells
 
 
-class ProjectSummaryConnection(StatusdbSession):
-    def __init__(self, config, dbname="projects"):
-        super().__init__(config)
-        self.db = self.connection[dbname]
-        self.name_view = {
-            k.key: k.id for k in self.db.view("project/project_name", reduce=False)
-        }
-        self.id_view = {
-            k.key: k.id for k in self.db.view("project/project_id", reduce=False)
-        }
-
-
-class FlowcellRunMetricsConnection(StatusdbSession):
+class FlowcellRunMetricsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="flowcells"):
         super().__init__(config)
-        self.db = self.connection[dbname]
-        self.name_view = {k.key: k.id for k in self.db.view("names/name", reduce=False)}
+        self.dbname = dbname
+        self.name_view = {
+            row["key"]: row["id"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="names", view="name", reduce=False
+            ).get_result()["rows"]
+        }
         self.proj_list = {
-            k.key: k.value
-            for k in self.db.view("names/project_ids_list", reduce=False)
-            if k.key
+            row["key"]: row["value"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="names", view="project_ids_list", reduce=False
+            ).get_result()["rows"]
+            if row["key"]
         }
 
 
-class X_FlowcellRunMetricsConnection(StatusdbSession):
+class X_FlowcellRunMetricsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="x_flowcells"):
         super().__init__(config)
-        self.db = self.connection[dbname]
-        self.name_view = {k.key: k.id for k in self.db.view("names/name", reduce=False)}
+        self.dbname = dbname
+        self.name_view = {
+            row["key"]: row["id"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="names", view="name", reduce=False
+            ).get_result()["rows"]
+        }
         self.proj_list = {
-            k.key: k.value
-            for k in self.db.view("names/project_ids_list", reduce=False)
-            if k.key
+            row["key"]: row["value"]
+            for row in self.connection.post_view(
+                db=self.dbname, ddoc="names", view="project_ids_list", reduce=False
+            ).get_result()["rows"]
+            if row["key"]
         }
 
 
-class NanoporeRunsConnection(StatusdbSession):
+class NanoporeRunsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="nanopore_runs"):
         super().__init__(config)
-        self.db = self.connection[dbname]
+        self.dbname = dbname
 
     def check_run_exists(self, ont_run) -> bool:
-        view_names = self.db.view("names/name")
-        if len(view_names[ont_run.run_name].rows) > 0:
+        ont_run_row = self.connection.post_view(
+            db=self.dbname,
+            ddoc="names",
+            view="name",
+            key=ont_run,
+        ).get_result()["rows"]
+        if len(ont_run_row) > 0:
             return True
         else:
             return False
 
     def check_run_status(self, ont_run) -> str:
-        view_all_stats = self.db.view("names/name")
-        doc_id = view_all_stats[ont_run.run_name].rows[0].id
-        return self.db[doc_id]["run_status"]
+        ont_run_doc = self.connection.post_view(
+            db=self.dbname,
+            ddoc="names",
+            view="name",
+            key=ont_run.run_name,
+            include_docs=True,
+        ).get_result()["rows"][0]["doc"]
+        return ont_run_doc["run_status"]
 
     def create_ongoing_run(
         self, ont_run, run_path_file: str, pore_count_history_file: str
@@ -151,66 +258,76 @@ class NanoporeRunsConnection(StatusdbSession):
             "pore_count_history": pore_counts,
         }
 
-        new_doc_id, new_doc_rev = self.db.save(new_doc)
+        response = self.connection.post_document(
+            db=self.dbname, document=new_doc
+        ).get_result()
+        if not response.get("ok"):
+            raise Exception(
+                f"Failed to create new document in {self.dbname} with response: {response}"
+            )
         logger.info(
-            f"New database entry created: {ont_run.run_name}, id {new_doc_id}, rev {new_doc_rev}"
+            f"New database entry created: {ont_run.run_name}, id {response['id']}, rev {response['rev']}"
         )
 
     def finish_ongoing_run(self, ont_run, dict_json: dict):
-        view_names = self.db.view("names/name")
-        doc_id = view_names[ont_run.run_name].rows[0].id
-        doc = self.db[doc_id]
+        doc = self.connection.post_view(
+            db=self.dbname,
+            ddoc="names",
+            view="name",
+            key=ont_run.run_name,
+            include_docs=True,
+        ).get_result()["rows"][0]["doc"]
 
         doc.update(dict_json)
         doc["run_status"] = "finished"
-        self.db[doc.id] = doc
+        response = self.connection.put_document(
+            db=self.dbname,
+            doc_id=doc["_id"],
+            document=doc,
+        ).get_result()
+        if not response.get("ok"):
+            raise Exception(
+                f"Failed to update document in {self.dbname} with response: {response}"
+            )
 
 
-class ElementRunsConnection(StatusdbSession):
+class ElementRunsConnection(GenericFlowcellRunConnection):
     def __init__(self, config, dbname="element_runs"):
         super().__init__(config)
-        self.db = self.connection[dbname]
+        self.dbname = dbname
 
-    def get_db_entry(self, run_id):
-        view_run_id = self.db.view("info/id")
-        try:
-            return view_run_id[run_id].rows[0]
-        except IndexError:
+    def get_db_entry(self, run_id, get_doc=False):
+        query_result = self.connection.post_view(
+            db=self.dbname,
+            ddoc="info",
+            view="id",
+            key=run_id,
+            include_docs=get_doc,
+        ).get_result()
+        if query_result["rows"]:
+            return query_result["rows"][0]
+        else:
             return None
 
     def check_if_run_exists(self, run_id) -> bool:
         return self.get_db_entry(run_id) is not None
 
     def check_db_run_status(self, run_name) -> str:
-        view_status = self.db.view("info/status")
-        try:
-            status = view_status[run_name].rows[0].value
-        except IndexError:  # No rows found
-            return "Unknown"
+        query_result = self.connection.post_view(
+            db=self.dbname,
+            ddoc="info",
+            view="status",
+            key=run_name,
+        ).get_result()
+
+        status = "Unknown"
+        if query_result["rows"]:
+            status = query_result["rows"][0]["value"]
+
         return status
 
     def upload_to_statusdb(self, run_obj: dict):
-        update_doc(self.db, run_obj)
-
-
-def update_doc(db, obj, over_write_db_entry=False):
-    view = db.view("info/name")
-    if len(view[obj["name"]].rows) == 1:
-        remote_doc = view[obj["name"]].rows[0].value
-        doc_id = remote_doc.pop("_id")
-        doc_rev = remote_doc.pop("_rev")
-        if remote_doc != obj:
-            if not over_write_db_entry:
-                obj = merge_dicts(obj, remote_doc)
-            obj["_id"] = doc_id
-            obj["_rev"] = doc_rev
-            db[doc_id] = obj
-            logger.info("Updating {}".format(obj["name"]))
-    elif len(view[obj["name"]].rows) == 0:
-        db.save(obj)
-        logger.info("Saving {}".format(obj["name"]))
-    else:
-        logger.warning("More than one row with name {} found".format(obj["name"]))
+        self.update_doc(self.dbname, run_obj)
 
 
 def merge_dicts(d1, d2):

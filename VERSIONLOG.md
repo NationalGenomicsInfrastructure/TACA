@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250717.1
+
+Replace the CouchDB package with IBM cloudant
+
 ## 20250603.1
 
 Misc. improvements to ONT processing.

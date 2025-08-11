@@ -6,6 +6,7 @@ import re
 from collections import OrderedDict, defaultdict
 
 from flowcell_parser.classes import RunParametersParser, SampleSheetParser
+from ibmcloudant.cloudant_v1 import BulkDocs
 
 from taca.element.Aviti_Runs import Aviti_Run
 from taca.nanopore.ONT_run_classes import ONT_RUN_PATTERN, ONT_run
@@ -84,8 +85,6 @@ def update_statusdb(run_dir, inst_brand):
     statusdb_conf = CONFIG.get("statusdb")
     couch_connection = statusdb.StatusdbSession(statusdb_conf).connection
     valueskey = datetime.datetime.now().isoformat()
-    db = couch_connection["bioinfo_analysis"]
-    view = db.view("latest_data/sample_id")
 
     if inst_brand == "illumina":
         # Fetch individual fields
@@ -128,19 +127,19 @@ def update_statusdb(run_dir, inst_brand):
                         # If entry exists, append to existing
                         # Special if case to handle lanes written as int, can be safely removed when old lanes
                         # is no longer stored as int
-                        try:
-                            if (
-                                len(view[[project, run_id, int(lane), sample]].rows)
-                                >= 1
-                            ):
-                                lane = int(lane)
-                        except ValueError:
-                            pass
-                        if len(view[[project, run_id, lane, sample]].rows) >= 1:
-                            remote_id = view[[project, run_id, lane, sample]].rows[0].id
-                            lane = str(lane)
-                            remote_doc = db[remote_id]["values"]
-                            remote_status = db[remote_id]["status"]
+                        num_rows = couch_connection.post_view(
+                            db="bioinfo_analysis",
+                            ddoc="latest_data",
+                            view="sample_id",
+                            key=[project, run_id, lane, sample],
+                        ).get_result()["rows"]
+                        if len(num_rows) >= 1:
+                            remote_id = num_rows[0]["id"]
+                            remote_doc = couch_connection.get_document(
+                                db="bioinfo_analysis", doc_id=remote_id
+                            ).get_result()
+                            remote_doc_values = remote_doc["values"]
+                            remote_status = remote_doc["status"]
                             # Only updates the listed statuses
                             if (
                                 remote_status
@@ -154,7 +153,7 @@ def update_statusdb(run_dir, inst_brand):
                                 and sample_status != remote_status
                             ):
                                 # Appends old entry to new. Essentially merges the two
-                                for k, v in remote_doc.items():
+                                for k, v in remote_doc_values.items():
                                     obj["values"][k] = v
                                 logger.info(
                                     f"Updating {run_id} {project} {flowcell} {lane} {sample} as {sample_status}"
@@ -168,16 +167,22 @@ def update_statusdb(run_dir, inst_brand):
                                     )
                                 )
                                 # Update record cluster
-                                obj["_rev"] = db[remote_id].rev
+                                obj["_rev"] = remote_doc["_rev"]
                                 obj["_id"] = remote_id
-                                db.save(obj)
+                                couch_connection.put_document(
+                                    db="bioinfo_analysis",
+                                    doc_id=obj["_id"],
+                                    document=obj,
+                                )
                         # Creates new entry
                         else:
                             logger.info(
                                 f"Creating {run_id} {project} {flowcell} {lane} {sample} as {sample_status}"
                             )
                             # Creates record
-                            db.save(obj)
+                            couch_connection.post_document(
+                                db="bioinfo_analysis", document=obj
+                            )
                         # Sets FC error flag
                         if project_info[flowcell].value is not None:
                             if (
@@ -258,15 +263,18 @@ def get_ss_projects_ont(ont_run, couch_connection):
     """Fetches project, FC, lane & sample (sample-run) status for a given folder for ONT runs"""
     proj_tree = Tree()
     flowcell_id = ont_run.run_name
-    flowcell_info = (
-        couch_connection["nanopore_runs"].view("info/lims")[flowcell_id].rows[0]
-    )
+    flowcell_info = couch_connection.post_view(
+        db="nanopore_runs",
+        ddoc="info",
+        view="lims",
+        key=flowcell_id,
+    ).get_result()["rows"][0]
     if (
-        flowcell_info.value
-        and flowcell_info.value.get("loading", [])
-        and "sample_data" in flowcell_info.value["loading"][-1]
+        flowcell_info["value"]
+        and flowcell_info["value"].get("loading", [])
+        and "sample_data" in flowcell_info["value"]["loading"][-1]
     ):
-        samples = flowcell_info.value["loading"][-1]["sample_data"]
+        samples = flowcell_info["value"]["loading"][-1]["sample_data"]
         for sample_dict in samples:
             sample_id = sample_dict["sample_name"]
             project = sample_id.split("_")[0]
@@ -488,39 +496,45 @@ def fail_run(runid, project):
         )
         logger.error(e)
         raise e
-    bioinfo_db = status_db["bioinfo_analysis"]
-    if project is not None:
-        view = bioinfo_db.view("full_doc/pj_run_to_doc")
-        rows = view[[project, runid]].rows
-        logger.info(
-            f"Updating status of {len(rows)} objects with flowcell_id: {runid} and project_id {project}"
-        )
+
+    if project:
+        view = "pj_run_to_doc"
+        key = [project, runid]
     else:
-        view = bioinfo_db.view("full_doc/run_id_to_doc")
-        rows = view[[runid]].rows
-        logger.info(f"Updating status of {len(rows)} objects with flowcell_id: {runid}")
+        view = "run_id_to_doc"
+        key = [runid]
+
+    rows = status_db.post_view(
+        db="bioinfo_analysis",
+        ddoc="full_doc",
+        view=view,
+        key=key,
+    ).get_result()["rows"]
+    logger.info(
+        f"Found {len(rows)} objects with flowcell_id: {runid}"
+        + (f" and project_id {project}" if project else "")
+    )
 
     new_timestamp = datetime.datetime.now().isoformat()
     updated = 0
+    to_save = []
     for row in rows:
-        if row.value["status"] != "Failed":
-            row.value["values"][new_timestamp] = {
+        if row["value"]["status"] != "Failed":
+            row["value"]["values"][new_timestamp] = {
                 "sample_status": "Failed",
                 "user": "taca",
             }
-            row.value["status"] = "Failed"
-        try:
-            bioinfo_db.save(row.value)
+            row["value"]["status"] = "Failed"
+
+        to_save.append(row["value"])
+    save_result = status_db.post_bulk_docs(
+        db="bioinfo_analysis", bulk_docs=BulkDocs(docs=to_save, new_edits=True)
+    ).get_result()
+    for res in save_result:
+        if "ok" in res:
             updated += 1
-        except Exception as e:
+        else:
             logger.error(
-                "Cannot update object project-sample-run-lane: {}-{}-{}-{}".format(
-                    row.value.get("project_id"),
-                    row.value.get("sample"),
-                    row.value.get("run_id"),
-                    row.value.get("lane"),
-                )
+                f"Failed to save object {res.get('id')}: {res.get('error')} {res.get('reason')}"
             )
-            logger.error(e)
-            raise e
     logger.info(f"Successfully updated {updated} objects")

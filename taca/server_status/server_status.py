@@ -98,13 +98,11 @@ def update_status_db(data, server_type=None):
         logging.error('"statusdb" must be present in the config file!')
         raise RuntimeError('"statusdb" must be present in the config file!')
     try:
-        couch_connection = statusdb.StatusdbSession(db_config).connection
+        couch_connection = statusdb.StatusdbSession(db_config)
     except Exception as e:
         logging.error(e.message)
         raise
 
-    db = couch_connection["server_status"]
-    logging.info("Connection established")
     for key in data.keys():  # data is dict of dicts
         server = data[key]  # data[key] is dictionary (the command output)
         server["name"] = key  # key is nas url
@@ -113,7 +111,8 @@ def update_status_db(data, server_type=None):
         server["server_type"] = server_type or "unknown"
 
         try:
-            db.save(server)
+            logging.info(f"Updating server status for {key}")
+            couch_connection.save_db_doc(doc=server, db="server_status")
         except Exception as e:
             logging.error(e.message)
             raise

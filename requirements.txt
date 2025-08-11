@@ -1,7 +1,7 @@
-CouchDB
 PyYAML
 click
 flowcell_parser @ git+https://github.com/SciLifeLab/flowcell_parser
+ibmcloudant>=0.9.1
 pandas
 python_crontab
 python_dateutil
