@@ -146,7 +146,9 @@ class GenericFlowcellRunConnection(StatusdbSession):
         project_flowcells = {}
         time_format = (
             "%y%m%d"
-            if (type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells")
+            if type(self)
+            in (X_FlowcellRunMetricsConnection, FlowcellRunMetricsConnection)
+            or dbname in ("x_flowcells", "flowcells")
             else "%Y%m%d"
         )
         date_sorted_fcs = sorted(
@@ -155,7 +157,10 @@ class GenericFlowcellRunConnection(StatusdbSession):
             reverse=True,
         )
         for fc in date_sorted_fcs:
-            if type(self) is X_FlowcellRunMetricsConnection or dbname == "x_flowcells":
+            if type(self) in (
+                X_FlowcellRunMetricsConnection,
+                FlowcellRunMetricsConnection,
+            ) or dbname in ("x_flowcells", "flowcells"):
                 fc_date, fc_name = fc.split("_")
             elif type(self) is NanoporeRunsConnection or dbname == "nanopore_runs":
                 fc_date, fc_time, position, fc_name, fc_hash = fc.split(
