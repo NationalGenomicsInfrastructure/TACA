@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250812.1
+
+Add back missed FlowcellRunMetricsConnection check in statusdb
+
 ## 20250717.1
 
 Replace the CouchDB package with IBM cloudant
