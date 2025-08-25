@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250825.1
+
+Fix bug in checking ONT run in statusdb
+
 ## 20250812.1
 
 Add back missed FlowcellRunMetricsConnection check in statusdb
