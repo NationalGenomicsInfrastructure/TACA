@@ -230,7 +230,7 @@ class NanoporeRunsConnection(GenericFlowcellRunConnection):
             db=self.dbname,
             ddoc="names",
             view="name",
-            key=ont_run,
+            key=ont_run.run_name,
         ).get_result()["rows"]
         if len(ont_run_row) > 0:
             return True
