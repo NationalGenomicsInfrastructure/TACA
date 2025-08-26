@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 
-from taca.element.Aviti_Runs import Aviti_Run
+from taca.element.Aviti_Runs import Aviti_Run, Teton_Run
 from taca.utils.config import CONFIG
 from taca.utils.misc import send_mail
 
@@ -54,71 +54,77 @@ def run_preprocessing(given_run):
             return
 
         #### Demultiplexing status ####
-        demultiplexing_status = run.get_demultiplexing_status()
-        if demultiplexing_status == "not started":
-            lims_zip_path = run.find_lims_zip()
-            if lims_zip_path is not None:
-                os.mkdir(run.demux_dir)
-                run.copy_manifests(lims_zip_path)
-                demux_manifests = run.make_demux_manifests(
-                    manifest_to_split=run.lims_manifest
-                )
-                sub_demux_count = 0
-                for demux_manifest in sorted(demux_manifests):
-                    sub_demux_dir = os.path.join(
-                        run.run_dir, f"Demultiplexing_{sub_demux_count}"
+        if isinstance(run, Teton_Run):
+            pass
+        else:
+            demultiplexing_status = run.get_demultiplexing_status()
+            if demultiplexing_status == "not started":
+                lims_zip_path = run.find_lims_zip()
+                if lims_zip_path is not None:
+                    os.mkdir(run.demux_dir)
+                    run.copy_manifests(lims_zip_path)
+                    demux_manifests = run.make_demux_manifests(
+                        manifest_to_split=run.lims_manifest
                     )
-                    os.mkdir(sub_demux_dir)
-                    run.start_demux(demux_manifest, sub_demux_dir)
-                    sub_demux_count += 1
+                    sub_demux_count = 0
+                    for demux_manifest in sorted(demux_manifests):
+                        sub_demux_dir = os.path.join(
+                            run.run_dir, f"Demultiplexing_{sub_demux_count}"
+                        )
+                        os.mkdir(sub_demux_dir)
+                        run.start_demux(demux_manifest, sub_demux_dir)
+                        sub_demux_count += 1
+                    run.status = "demultiplexing"
+                    if run.status_changed():
+                        run.update_statusdb()
+                    return
+                else:
+                    logger.warning(
+                        f"Run manifest is missing for {run}, demultiplexing aborted"
+                    )
+                    email_subject = f"Issues processing {run}"
+                    email_message = (
+                        f"Run manifest is missing for {run}, demultiplexing aborted"
+                    )
+                    send_mail(
+                        email_subject, email_message, CONFIG["mail"]["recipients"]
+                    )
+                    return
+            elif demultiplexing_status == "ongoing":
                 run.status = "demultiplexing"
                 if run.status_changed():
                     run.update_statusdb()
                 return
-            else:
+
+            elif demultiplexing_status != "finished":
                 logger.warning(
-                    f"Run manifest is missing for {run}, demultiplexing aborted"
+                    f"Unknown demultiplexing status {demultiplexing_status} of run {run}. "
+                    "Please investigate."
                 )
                 email_subject = f"Issues processing {run}"
                 email_message = (
-                    f"Run manifest is missing for {run}, demultiplexing aborted"
+                    f"Unknown demultiplexing status {demultiplexing_status} of "
+                    f"run {run}. Please investigate."
                 )
                 send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
                 return
-        elif demultiplexing_status == "ongoing":
-            run.status = "demultiplexing"
-            if run.status_changed():
-                run.update_statusdb()
-            return
 
-        elif demultiplexing_status != "finished":
-            logger.warning(
-                f"Unknown demultiplexing status {demultiplexing_status} of run {run}. "
-                "Please investigate."
-            )
-            email_subject = f"Issues processing {run}"
+            email_subject = f"Demultiplexing completed for {run}"
             email_message = (
-                f"Unknown demultiplexing status {demultiplexing_status} of "
-                f"run {run}. Please investigate."
+                f"{run} has been demultiplexed without any errors or warnings.\n"
+                "The run will be transferred to the analysis cluster for further analysis.\n"
+                f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
             )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
-            return
-
-        email_subject = f"Demultiplexing completed for {run}"
-        email_message = (
-            f"{run} has been demultiplexed without any errors or warnings.\n"
-            "The run will be transferred to the analysis cluster for further analysis.\n"
-            f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
-        )
-        send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
         if transfer_status == "not started":
-            demux_results_dirs = glob.glob(
-                os.path.join(run.run_dir, "Demultiplexing_*")
-            )
-            run.aggregate_demux_results(demux_results_dirs)
+            if not isinstance(run, Teton_Run):
+                demux_results_dirs = glob.glob(
+                    os.path.join(run.run_dir, "Demultiplexing_*")
+                )
+                run.aggregate_demux_results(demux_results_dirs)
             run.sync_metadata()
             run.make_transfer_indicator()
             run.status = "transferring"
@@ -170,16 +176,31 @@ def run_preprocessing(given_run):
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
 
+    teton_runs_file = CONFIG.get("element_analysis").get("teton_runs_file")
+    if teton_runs_file and os.path.isfile(teton_runs_file):
+        with open(teton_runs_file) as f:
+            teton_runs = [line.strip() for line in f if line.strip()]
+
     if given_run:
-        run = Aviti_Run(given_run, CONFIG)
+        if given_run in teton_runs:
+            run = Teton_Run(given_run, CONFIG)
+        else:
+            run = Aviti_Run(given_run, CONFIG)
         _process(run)
     else:
         data_dirs = CONFIG.get("element_analysis").get("data_dirs")
         for data_dir in data_dirs:
-            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and name
+            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID
+            # Teton runs have _User or _Ctrl after the FC ID
             runs = glob.glob(os.path.join(data_dir, "[1-9]*_*_*"))
             for run in runs:
-                runObj = Aviti_Run(run, CONFIG)
+                if "FlowcellPressureCheck" in run:
+                    # Skip the pressure check runs (Teton runs)
+                    continue
+                if run in teton_runs:
+                    runObj = Teton_Run(run, CONFIG)
+                else:
+                    runObj = Aviti_Run(run, CONFIG)
                 try:
                     _process(runObj)
                 except Exception as e:

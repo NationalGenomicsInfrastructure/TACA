@@ -272,16 +272,12 @@ class Run:
         )  # Unique hash that we don't really use
         self.side = run_parameters.get("Side")  # SideA or SideB
         self.side_letter = self.side[-1]  # A or B
-        if self.side_letter != self.run_dir.split("_")[-1][0]:
-            logger.warning(
-                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
-            )
-            raise AssertionError(f"Inconcistencies in side assignments for {self}")
+        self.check_side_letter()
         self.run_type = run_parameters.get(
             "RunType"
-        )  # Sequencing, wash or prime I believe?
-        self.flowcell_id = run_parameters.get("FlowcellID")
-        self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})
+        )  # Sequencing, Cytoprofiling, wash or prime I believe?
+        self.flowcell_id = run_parameters.get("FlowcellID") #FIXME: teton runs don't have FlowcellID in the RunParameters.json
+        self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0}) #FIXME: teton runs don't have Cycles in the RunParameters.json
         self.instrument_name = run_parameters.get("InstrumentName")
         self.date = run_parameters.get("Date")[0:10].replace("-", "")
         self.year = self.date[0:4]
