@@ -276,8 +276,10 @@ class Run:
         self.run_type = run_parameters.get(
             "RunType"
         )  # Sequencing, Cytoprofiling, wash or prime I believe?
-        self.flowcell_id = run_parameters.get("FlowcellID") #FIXME: teton runs don't have FlowcellID in the RunParameters.json
-        self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0}) #FIXME: teton runs don't have Cycles in the RunParameters.json
+        self.flowcell_id = run_parameters.get(
+            "FlowcellID"
+        )  # FIXME: teton runs don't have FlowcellID in the RunParameters.json
+        self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})
         self.instrument_name = run_parameters.get("InstrumentName")
         self.date = run_parameters.get("Date")[0:10].replace("-", "")
         self.year = self.date[0:4]
@@ -1327,7 +1329,7 @@ class Run:
             if os.path.exists(f):
                 shutil.copy(f, dest)
             else:
-                logger.warning(f"File {f} missing for run {self.run}")
+                logger.warning(f"File {f} missing for run {self.NGI_run_id}")
 
     def make_transfer_indicator(self):
         transfer_indicator = os.path.join(self.run_dir, ".rsync_ongoing")

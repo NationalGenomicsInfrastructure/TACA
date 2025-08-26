@@ -196,6 +196,7 @@ def run_preprocessing(given_run):
             for run in runs:
                 if "FlowcellPressureCheck" in run:
                     # Skip the pressure check runs (Teton runs)
+                    logger.info(f"Skipping {run}")  # TODO: should these be synced?
                     continue
                 if run in teton_runs:
                     runObj = Teton_Run(run, CONFIG)
