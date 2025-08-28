@@ -5,7 +5,7 @@ It handles metadata file creation, syncing to storage, local archiving and clean
 The script is written in pure Python to avoid installing external dependencies.
 """
 
-__version__ = "1.0.15"
+__version__ = "1.0.16"
 
 import argparse
 import logging
