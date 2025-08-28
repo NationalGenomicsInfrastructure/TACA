@@ -184,7 +184,7 @@ def sync_to_storage(
         [
             "run-one",
             "rsync",
-            "-auq",
+            "-au",
             "--log-file=" + rsync_log,
         ]
         + settings
