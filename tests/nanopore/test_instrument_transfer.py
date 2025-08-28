@@ -19,24 +19,24 @@ def setup_test_fixture():
 
     # Set up args
     args = Mock()
-    args.prom_runs = tmp.name + "/data"
+    args.local_runs = tmp.name + "/data"
     args.exclude_dirs = ["nosync", "keep_data", "cg_data"]
     args.nas_runs = tmp.name + "/preproc"
     args.miarka_runs = tmp.name + "/hpc/promethion/"
     args.miarka_settings = ["--chown=:group", "--chmod=Dg+s,g+rw"]
-    args.prom_archive = tmp.name + "/data/nosync"
+    args.local_archive = tmp.name + "/data/nosync"
     args.minknow_logs = tmp.name + "/minknow_logs"
     args.rsync_log = tmp.name + "/data/rsync_log.txt"
     args.log = tmp.name + "/data/instrument_transfer.log"
 
     # Create dirs
     for dir in [
-        args.prom_runs,
+        args.local_runs,
         args.nas_runs,
         args.nas_runs + "/nosync",
         args.nas_runs + "/nosync/archived",
         args.miarka_runs,
-        args.prom_archive,
+        args.local_archive,
         args.minknow_logs,
     ]:
         os.makedirs(dir)
@@ -85,7 +85,7 @@ def test_main_ignore_CTC(setup_test_fixture):
 
     # Setup run
     run_path = (
-        f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'CTC')}"
+        f"{args.local_runs}/experiment/sample/{DUMMY_RUN_NAME.replace('TEST', 'CTC')}"
     )
     os.makedirs(run_path)
 
@@ -110,7 +110,7 @@ def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fi
     mock_check_output.side_effect = subprocess.CalledProcessError(1, "noRsyncRunning")
 
     # Set up ONT run
-    run_path = f"{args.prom_runs}/experiment/sample/{DUMMY_RUN_NAME}"
+    run_path = f"{args.local_runs}/experiment/sample/{DUMMY_RUN_NAME}"
     os.makedirs(run_path)
 
     # Start testing
@@ -120,7 +120,7 @@ def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fi
     assert mock_popen.call_args_list[0].args[0] == [
         "run-one",
         "rsync",
-        "-auq",
+        "-au",
         f"--log-file={args.rsync_log}",
         run_path,
         args.nas_runs,
@@ -128,7 +128,7 @@ def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fi
     assert mock_popen.call_args_list[1].args[0] == [
         "run-one",
         "rsync",
-        "-auq",
+        "-au",
         f"--log-file={args.rsync_log}",
         "--chown=:group",
         "--chmod=Dg+s,g+rw",
@@ -200,7 +200,7 @@ def test_sync_to_storage():
             [
                 "run-one",
                 "rsync",
-                "-auq",
+                "-au",
                 "--log-file=/path/to/rsync_log",
                 "/path/to/run",
                 "/path/to/destination",
