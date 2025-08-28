@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250828.1
+
+Update ONT transfer script to be instrument agnostic, more readable and resolve rrsync issues.
+
 ## 20250825.1
 
 Fix bug in checking ONT run in statusdb
