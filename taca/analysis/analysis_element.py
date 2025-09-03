@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 
-from taca.element.Aviti_Runs import Aviti_Run, Teton_Run
+from taca.element.Aviti_Runs import Aviti_Run
 from taca.utils.config import CONFIG
 from taca.utils.misc import send_mail
 
@@ -17,13 +17,14 @@ def run_preprocessing(given_run):
     :param str given_run: Process a particular run instead of looking for runs
     """
 
-    def _process(run):
+    def _process(run_to_process):
         """Process a run/flowcell and transfer to analysis server.
 
         :param taca.element.Run run: Run to be processed and transferred
         """
-        logger.info(f"Working on {run}")
+        logger.info(f"Working on {run_to_process}")
         try:
+            run = Aviti_Run(run_to_process, CONFIG)
             run.parse_run_parameters()
         except FileNotFoundError:
             logger.warning(
@@ -54,7 +55,8 @@ def run_preprocessing(given_run):
             return
 
         #### Demultiplexing status ####
-        if isinstance(run, Teton_Run):
+        if run.run_type == "Cytoprofiling":
+            logger.info(f"Skipping demultiplexing for {run} as it is a Cytoprofiling run")
             pass
         else:
             demultiplexing_status = run.get_demultiplexing_status()
@@ -120,7 +122,7 @@ def run_preprocessing(given_run):
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
         if transfer_status == "not started":
-            if not isinstance(run, Teton_Run):
+            if not run.run_type == "Cytoprofiling":
                 demux_results_dirs = glob.glob(
                     os.path.join(run.run_dir, "Demultiplexing_*")
                 )
@@ -176,34 +178,20 @@ def run_preprocessing(given_run):
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
             return
 
-    teton_runs_file = CONFIG.get("element_analysis").get("teton_runs_file")
-    if teton_runs_file and os.path.isfile(teton_runs_file):
-        with open(teton_runs_file) as f:
-            teton_runs = [line.strip() for line in f if line.strip()]
-
     if given_run:
-        if given_run in teton_runs:
-            run = Teton_Run(given_run, CONFIG)
-        else:
-            run = Aviti_Run(given_run, CONFIG)
-        _process(run)
+        _process(given_run)
     else:
         data_dirs = CONFIG.get("element_analysis").get("data_dirs")
         for data_dir in data_dirs:
-            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID
-            # Teton runs have _User or _Ctrl after the FC ID
+            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID (PID for teton runs)
             runs = glob.glob(os.path.join(data_dir, "[1-9]*_*_*"))
             for run in runs:
                 if "FlowcellPressureCheck" in run:
                     # Skip the pressure check runs (Teton runs)
                     logger.info(f"Skipping {run}")  # TODO: should these be synced?
                     continue
-                if run in teton_runs:
-                    runObj = Teton_Run(run, CONFIG)
-                else:
-                    runObj = Aviti_Run(run, CONFIG)
                 try:
-                    _process(runObj)
+                    _process(run)
                 except Exception as e:
                     # This function might throw an exception,
                     # it is better to continue processing other runs
