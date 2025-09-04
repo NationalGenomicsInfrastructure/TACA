@@ -108,7 +108,7 @@ def run_preprocessing(given_run):
         email_message = (
             f"{run} has been demultiplexed without any errors or warnings.\n"
             "The run will be transferred to the analysis cluster for further analysis.\n"
-            f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+            f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run.NGI_run_id}"
         )
         send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
