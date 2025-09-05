@@ -1025,6 +1025,8 @@ class Run:
                 with open(assigned_csv) as assigned_file:
                     reader = csv.DictReader(assigned_file)
                     index_assignment = [row for row in reader]
+                if len(index_assignment) == 0:
+                    index_assignment = self.get_noindex_stats(sub_demux)
                 for sample in index_assignment:
                     if sample["Lane"] in lanes:
                         project_runstats_sample = [
@@ -1118,6 +1120,39 @@ class Run:
 
         return aggregated_assigned_indexes_filtered_sorted
 
+    def get_noindex_stats(self, sub_demux):
+        # Get stats for NoIndex case
+        # TODO: also get PercentPoloniesAssigned,Yield(Gb) from somewhere?
+        sub_demux_manifest = os.path.join(
+            self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
+        )
+        with open(sub_demux_manifest) as json_file:
+            manifest_json = json.load(json_file)
+        split_contents = manifest_json.get("[SAMPLES]").strip().split("\n")
+        sample_name = split_contents[1].split(",")[0]
+        lane = split_contents[1].split(",")[3]
+        # Extract NumPolonies from RunStats.json
+        runstats_json_path = os.path.join(
+            self.run_dir, f"Demultiplexing_{sub_demux}", "RunStats.json"
+        )
+        if os.path.exists(runstats_json_path):
+            with open(runstats_json_path) as json_file:
+                demux_info = json.load(json_file)
+            demuxed_lanes = demux_info.get("Lanes").get(lane)
+            for demuxed_lane in demuxed_lanes:
+                if demuxed_lane.get("Lane") == int(lane):
+                    polonies = demuxed_lane.get("NumPolonies")
+                    break
+        return [
+            {
+                "SampleName": sample_name,
+                "I1": "",
+                "I2": "",
+                "Lane": lane,
+                "NumPoloniesAssigned": polonies,
+            }
+        ]
+
     # Aggregate stats in UnassignedSequences.csv
     def aggregate_stats_unassigned(
         self, demux_runmanifest, aggregated_assigned_indexes_filtered_sorted
@@ -1160,6 +1195,8 @@ class Run:
                     f"No {os.path.basename(max_unassigned_csv)} file found for sub-demultiplexing {sub_demux_with_max_index_lens}."
                 )
                 break
+            if max_unassigned_indexes == []:
+                continue
             # Filter by lane
             max_unassigned_indexes = [
                 idx for idx in max_unassigned_indexes if idx["Lane"] == lane
@@ -1331,7 +1368,7 @@ class Run:
             if os.path.exists(f):
                 shutil.copy(f, dest)
             else:
-                logger.warning(f"File {f} missing for run {self.run}")
+                logger.warning(f"File {f} missing for run {self.NGI_run_id}!")
 
     def make_transfer_indicator(self):
         transfer_indicator = os.path.join(self.run_dir, ".rsync_ongoing")
