@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250904.1
+
+Fix bug in link in Element flowcell status email
+
 ## 20250828.1
 
 Update ONT transfer script to be instrument agnostic, more readable and resolve rrsync issues.
