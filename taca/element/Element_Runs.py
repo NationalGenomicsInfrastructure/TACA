@@ -1126,8 +1126,9 @@ class Run:
         sub_demux_manifest = os.path.join(
             self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
         )
-        with open(sub_demux_manifest) as csv_file:
-            manifest_csv = csv_file.readlines()
+        # read sub_demux_manifest into a string
+        with open(sub_demux_manifest) as f:
+            manifest_csv = f.read()
         split_contents = manifest_csv.split("[SAMPLES]")
         sample_name = split_contents[1].split(",")[0]
         lane = split_contents[1].split(",")[3]
