@@ -1127,8 +1127,8 @@ class Run:
             self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
         )
         with open(sub_demux_manifest) as csv_file:
-            manifest_csv = csv.DictReader(csv_file)
-        split_contents = manifest_csv.get("[SAMPLES]").strip().split("\n")
+            manifest_csv = csv_file.readlines()
+        split_contents = manifest_csv.split("[SAMPLES]")
         sample_name = split_contents[1].split(",")[0]
         lane = split_contents[1].split(",")[3]
         # Extract NumPolonies from RunStats.json
