@@ -1126,9 +1126,9 @@ class Run:
         sub_demux_manifest = os.path.join(
             self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
         )
-        with open(sub_demux_manifest) as json_file:
-            manifest_json = json.load(json_file)
-        split_contents = manifest_json.get("[SAMPLES]").strip().split("\n")
+        with open(sub_demux_manifest) as csv_file:
+            manifest_csv = csv.DictReader(csv_file)
+        split_contents = manifest_csv.get("[SAMPLES]").strip().split("\n")
         sample_name = split_contents[1].split(",")[0]
         lane = split_contents[1].split(",")[3]
         # Extract NumPolonies from RunStats.json
