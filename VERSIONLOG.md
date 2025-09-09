@@ -1,5 +1,21 @@
 # TACA Version Log
 
+## 20250909.1
+
+Update Element analysis to handle NoIndex cases
+
+## 20250904.1
+
+Fix bug in link in Element flowcell status email
+
+## 20250828.1
+
+Update ONT transfer script to be instrument agnostic, more readable and resolve rrsync issues.
+
+## 20250825.1
+
+Fix bug in checking ONT run in statusdb
+
 ## 20250812.1
 
 Add back missed FlowcellRunMetricsConnection check in statusdb

@@ -5,7 +5,7 @@ It handles metadata file creation, syncing to storage, local archiving and clean
 The script is written in pure Python to avoid installing external dependencies.
 """
 
-__version__ = "1.0.15"
+__version__ = "1.0.16"
 
 import argparse
 import logging
@@ -31,12 +31,12 @@ def main(args):
     # Start script
     logging.info(f"Starting script version {__version__}.")
 
-    run_paths = find_runs(dir_to_search=args.prom_runs, exclude_dirs=args.exclude_dirs)
+    run_paths = find_runs(dir_to_search=args.local_runs, exclude_dirs=args.exclude_dirs)
 
     if run_paths:
         handle_runs(run_paths=run_paths, args=args)
 
-    delete_archived_runs(prom_archive=args.prom_archive, nas_runs=args.nas_runs)
+    delete_archived_runs(local_archive=args.local_archive, nas_runs=args.nas_runs)
 
 
 def find_runs(dir_to_search, exclude_dirs):
@@ -82,12 +82,12 @@ def handle_runs(run_paths, args):
             final_sync_and_archive(run_path, args)
 
 
-def delete_archived_runs(prom_archive, nas_runs):
+def delete_archived_runs(local_archive, nas_runs):
     logging.info("Finding locally archived runs...")
     # Look for dirs matching run pattern inside archive dir
     run_paths = [
         path
-        for path in glob(os.path.join(prom_archive, "*"), recursive=True)
+        for path in glob(os.path.join(local_archive, "*"), recursive=True)
         if re.match(RUN_PATTERN, os.path.basename(path))
     ]
     logging.info(f"Found {len(run_paths)} locally archived runs...")
@@ -153,7 +153,7 @@ def dump_path(run_path: str):
 
 def write_finished_indicator(run_path):
     """Write a hidden file to indicate
-    when the final rsync is finished."""
+    when the run is completely synced."""
     finished_indicator = ".sync_finished"
     new_file_path = os.path.join(run_path, finished_indicator)
     Path(new_file_path).touch(exist_ok=True)
@@ -184,7 +184,7 @@ def sync_to_storage(
         [
             "run-one",
             "rsync",
-            "-auq",
+            "-au",
             "--log-file=" + rsync_log,
         ]
         + settings
@@ -208,7 +208,7 @@ def sync_to_storage(
             )
         else:
             logging.info(
-                f"{os.path.basename(run_path)}: Starting final rsync to {destination}"
+                f"{os.path.basename(run_path)}: Starting foreground rsync to {destination}"
                 + f" with the following command: '{' '.join(command)}'"
             )
             p_foreground = subprocess.run(command)
@@ -228,9 +228,14 @@ def final_sync_and_archive(
     run_path: str,
     args,
 ):
-    """Do a final sync of the run to storage, then archive it."""
+    """For a run that's finished sequencing:
+    1) Do foreground rsyncs of the run to storage
+    2) On success, create finshed indicator file
+    3) Repeat 1) to sync indicator file
+    4) On success, archive the run
+    """
 
-    logging.info(f"{os.path.basename(run_path)}: Performing a final sync to storage...")
+    logging.info(f"{os.path.basename(run_path)}: Ready for final sync and archiving.")
 
     if sync_to_storage(
         run_path=run_path,
@@ -271,7 +276,7 @@ def final_sync_and_archive(
         logging.info(
             f"{os.path.basename(run_path)}: Indicator file synced successfully, archiving run..."
         )
-        archive_finished_run(run_path, args.prom_archive)
+        archive_finished_run(run_path, args.local_archive)
         logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
     else:
         logging.error(
@@ -279,14 +284,14 @@ def final_sync_and_archive(
         )
 
 
-def archive_finished_run(run_path: str, prom_archive: str):
+def archive_finished_run(run_path: str, local_archive: str):
     """Move finished run to archive (nosync)."""
 
     sample_dir = os.path.dirname(run_path)
     exp_dir = os.path.dirname(sample_dir)
 
-    logging.info(f"{os.path.basename(run_path)}: Archiving to {prom_archive}.")
-    shutil.move(run_path, prom_archive)
+    logging.info(f"{os.path.basename(run_path)}: Archiving to {local_archive}.")
+    shutil.move(run_path, local_archive)
     logging.info(f"{os.path.basename(run_path)}: Finished archiving run.")
 
     # Remove sample dir, if empty
@@ -469,7 +474,7 @@ def valid_file(path):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--prom_runs",
+        "--local_runs",
         required=True,
         type=valid_dir,
         help="Path to directory where ONT runs are created by the instrument.",
@@ -478,7 +483,7 @@ def parse_args():
         "--exclude_dirs",
         required=True,
         type=lambda s: s.split(","),
-        help="Comma-separated names of dirs inside prom_runs to exclude from the search.",
+        help="Comma-separated names of dirs inside local_runs to exclude from the search.",
     )
     parser.add_argument(
         "--nas_runs",
@@ -499,7 +504,7 @@ def parse_args():
         help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
     )
     parser.add_argument(
-        "--prom_archive",
+        "--local_archive",
         required=True,
         type=valid_dir,
         help="Path to local archive directory for ONT runs.",
