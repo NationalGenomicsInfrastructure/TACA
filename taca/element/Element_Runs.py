@@ -662,11 +662,6 @@ class Run:
             else:
                 raise AssertionError("Both I1 and I2 appear to contain UMIs.")
 
-            # Add mismatch threshold settings
-            i1_mm_threshold, i2_mm_threshold = get_custom_mistmatch_thresholds(group)
-            settings_kvs["I1MismatchThreshold"] = str(i1_mm_threshold)
-            settings_kvs["I2MismatchThreshold"] = str(i2_mm_threshold)
-
             # Unpack settings from LIMS manifest
             if settings:
                 for kv in settings.split(" "):
@@ -700,8 +695,21 @@ class Run:
                 lambda x: x[:i2_len]
             )
 
-            # Add PhiX to group
-            group = pd.concat([group, group_controls], axis=0, ignore_index=True)
+            # If there are no indexes
+            if i1_len == 0 and i2_len == 0:
+                logger.info(
+                    f"{file_name} has no labeled samples, omitting mismatch thresholds settings and PhiX samples."
+                )
+            else:
+                # Add mismatch threshold settings
+                i1_mm_threshold, i2_mm_threshold = get_custom_mistmatch_thresholds(
+                    group
+                )
+                settings_kvs["I1MismatchThreshold"] = str(i1_mm_threshold)
+                settings_kvs["I2MismatchThreshold"] = str(i2_mm_threshold)
+
+                # Add PhiX to group
+                group = pd.concat([group, group_controls], axis=0, ignore_index=True)
 
             samples_section = (
                 f"[SAMPLES]\n{group.iloc[:, 0:6].to_csv(index=None, header=True)}"
