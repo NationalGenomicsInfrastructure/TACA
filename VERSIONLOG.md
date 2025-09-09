@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250909.1
+
+Update Element analysis to handle NoIndex cases
+
 ## 20250904.1
 
 Fix bug in link in Element flowcell status email
