@@ -1139,7 +1139,7 @@ class Run:
         if os.path.exists(runstats_json_path):
             with open(runstats_json_path) as json_file:
                 demux_info = json.load(json_file)
-            demuxed_lanes = demux_info.get("Lanes").get(lane)
+            demuxed_lanes = demux_info.get("Lanes")
             for demuxed_lane in demuxed_lanes:
                 if demuxed_lane.get("Lane") == int(lane):
                     polonies = demuxed_lane.get("NumPolonies")
