@@ -1129,7 +1129,9 @@ class Run:
         # read sub_demux_manifest into a string
         with open(sub_demux_manifest) as f:
             manifest_csv = f.read()
-        sample_row = manifest_csv.split("[SAMPLES]")[1].strip().split("\n")[-1]  # ugh...
+        sample_row = (
+            manifest_csv.split("[SAMPLES]")[1].strip().split("\n")[-1]
+        )  # ugh...
         sample_name = sample_row.split(",")[0]
         lane = sample_row.split(",")[3]
         # Extract NumPolonies from RunStats.json
