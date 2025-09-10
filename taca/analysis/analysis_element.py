@@ -59,7 +59,6 @@ def run_preprocessing(given_run):
             logger.info(
                 f"Skipping demultiplexing for {run} as it is a Cytoprofiling run"
             )
-            pass
         else:
             demultiplexing_status = run.get_demultiplexing_status()
             if demultiplexing_status == "not started":
