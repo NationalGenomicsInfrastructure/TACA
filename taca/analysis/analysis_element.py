@@ -148,17 +148,13 @@ def run_preprocessing(given_run):
             if run.status_changed():
                 run.update_statusdb()
             run.move_to_nosync()
-            run.status = "processed"
             email_subject = f"{run} has been transferred to the analysis cluster"
             email_message = (
                 f"Rsync of data for run {run} to the analysis cluster has finished!\n"
                 f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
             )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
-
-            if run.status_changed():
-                run.update_statusdb()
-            return
+            
         elif transfer_status == "rsync failed":
             run.status = "transfer failed"
             logger.warning(
