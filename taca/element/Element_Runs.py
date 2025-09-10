@@ -253,6 +253,13 @@ class Run:
         else:
             raise RuntimeError(f"Run parameters not parsed for run {self.run_dir}")
 
+    def check_side_letter(self):
+        if self.side_letter != self.run_dir.split("_")[-1][0]:
+            logger.warning(
+                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
+            )
+            raise AssertionError(f"Inconcistencies in side assignments for {self}")
+
     def parse_run_parameters(self) -> None:
         """Parse run-information from the RunParameters.json file"""
         try:
