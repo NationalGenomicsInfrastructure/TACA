@@ -56,7 +56,9 @@ def run_preprocessing(given_run):
 
         #### Demultiplexing status ####
         if run.run_type == "Cytoprofiling":
-            logger.info(f"Skipping demultiplexing for {run} as it is a Cytoprofiling run")
+            logger.info(
+                f"Skipping demultiplexing for {run} as it is a Cytoprofiling run"
+            )
             pass
         else:
             demultiplexing_status = run.get_demultiplexing_status()
@@ -154,7 +156,7 @@ def run_preprocessing(given_run):
                 f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
             )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
-            
+
         elif transfer_status == "rsync failed":
             run.status = "transfer failed"
             logger.warning(
