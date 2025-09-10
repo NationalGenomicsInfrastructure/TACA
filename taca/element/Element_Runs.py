@@ -276,9 +276,10 @@ class Run:
         self.run_type = run_parameters.get(
             "RunType"
         )  # Sequencing, Cytoprofiling, wash or prime
-        self.flowcell_id = (
-            run_parameters.get("Consumables").get("Flowcell").get("SerialNumber")
-        )  # Teton runs don't have FlowcellID in the RunParameters.json, so we need to get it from Consumables
+        if self.run_type == "Cytoprofiling":
+            self.flowcell_id = self.run_name  # Teton runs don't have FlowcellID in the RunParameters.json, the PID is used instead
+        else:
+            self.flowcell_id = run_parameters.get("FlowcellID")
         self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})
         self.instrument_name = run_parameters.get("InstrumentName")
         self.date = run_parameters.get("Date")[0:10].replace("-", "")
