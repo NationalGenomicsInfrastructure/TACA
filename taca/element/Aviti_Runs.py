@@ -1,4 +1,8 @@
+import logging
+
 from taca.element.Element_Runs import Run
+
+logger = logging.getLogger(__name__)
 
 
 class Aviti_Run(Run):

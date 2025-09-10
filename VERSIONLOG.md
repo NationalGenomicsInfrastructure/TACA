@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250910.1
+
+Update Element analysis to handle AVITI24 Teton runs
+
 ## 20250909.1
 
 Update Element analysis to handle NoIndex cases

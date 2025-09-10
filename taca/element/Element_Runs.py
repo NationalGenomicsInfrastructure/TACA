@@ -253,6 +253,13 @@ class Run:
         else:
             raise RuntimeError(f"Run parameters not parsed for run {self.run_dir}")
 
+    def check_side_letter(self):
+        if self.side_letter != self.run_dir.split("_")[-1][0]:
+            logger.warning(
+                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
+            )
+            raise AssertionError(f"Inconcistencies in side assignments for {self}")
+
     def parse_run_parameters(self) -> None:
         """Parse run-information from the RunParameters.json file"""
         try:
@@ -272,15 +279,14 @@ class Run:
         )  # Unique hash that we don't really use
         self.side = run_parameters.get("Side")  # SideA or SideB
         self.side_letter = self.side[-1]  # A or B
-        if self.side_letter != self.run_dir.split("_")[-1][0]:
-            logger.warning(
-                f"Side specified by sequencing operator does not match side from instrument for {self}. Aborting."
-            )
-            raise AssertionError(f"Inconcistencies in side assignments for {self}")
+        self.check_side_letter()
         self.run_type = run_parameters.get(
             "RunType"
-        )  # Sequencing, wash or prime I believe?
-        self.flowcell_id = run_parameters.get("FlowcellID")
+        )  # Sequencing, Cytoprofiling, wash or prime
+        if self.run_type == "Cytoprofiling":
+            self.flowcell_id = self.run_name  # Teton runs don't have FlowcellID in the RunParameters.json, the PID is used instead
+        else:
+            self.flowcell_id = run_parameters.get("FlowcellID")
         self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})
         self.instrument_name = run_parameters.get("InstrumentName")
         self.date = run_parameters.get("Date")[0:10].replace("-", "")
@@ -1387,17 +1393,28 @@ class Run:
 
     def transfer(self):
         transfer_details = self.CONFIG.get("element_analysis").get("transfer_details")
-        command = (
-            "rsync"
-            + " -rLav"
-            + f" --chown={transfer_details.get('owner')}"
-            + f" --chmod={transfer_details.get('permissions')}"
-            + " --exclude BaseCalls"
-            + " --exclude Alignment"
-            + f" {self.run_dir}"
-            + f" {transfer_details.get('user')}@{transfer_details.get('host')}:/aviti"
-            + f"; echo $? > {os.path.join(self.run_dir, '.rsync_exit_status')}"
-        )
+        if self.run_type == "Cytoprofiling":
+            command = (
+                "rsync"
+                + " -rLav"
+                + f" --chown={transfer_details.get('owner')}"
+                + f" --chmod={transfer_details.get('permissions')}"
+                + f" {self.run_dir}"
+                + f" {transfer_details.get('user')}@{transfer_details.get('host')}:/aviti"
+                + f"; echo $? > {os.path.join(self.run_dir, '.rsync_exit_status')}"
+            )
+        else:
+            command = (
+                "rsync"
+                + " -rLav"
+                + f" --chown={transfer_details.get('owner')}"
+                + f" --chmod={transfer_details.get('permissions')}"
+                + " --exclude BaseCalls"
+                + " --exclude Alignment"
+                + f" {self.run_dir}"
+                + f" {transfer_details.get('user')}@{transfer_details.get('host')}:/aviti"
+                + f"; echo $? > {os.path.join(self.run_dir, '.rsync_exit_status')}"
+            )
         try:
             p_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
             logger.info(
