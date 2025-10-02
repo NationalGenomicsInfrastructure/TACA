@@ -102,61 +102,6 @@ class backup_utils:
                         if self._is_ready_to_archive(run, ext):
                             self.runs.append(run)
 
-    def avail_disk_space(self, path, run):
-        """Check the space on file system based on parent directory of the run."""
-        # not able to fetch runtype use the max size as precaution, size units in GB
-        run_sizes = {
-            "novaseq": 1800,
-            "miseq": 20,
-            "nextseq": 250,
-            "NovaSeqXPlus": 3600,
-            "promethion": 3000,
-            "minion": 1000,
-            "aviti": 350,
-        }
-        required_size = run_sizes.get(self._get_run_type(run), 900) * 2
-        # check for any ongoing runs and add up the required size accordingly
-        for data_dir in self.data_dirs.values():
-            if not os.path.isdir(data_dir):
-                continue
-            for run_dir in os.listdir(data_dir):
-                if not (
-                    re.match(filesystem.RUN_RE_ILLUMINA, run_dir)
-                    or re.match(filesystem.RUN_RE_ONT, run_dir)
-                    or re.match(filesystem.RUN_RE_ELEMENT, run_dir)
-                ):
-                    continue
-                if not (
-                    os.path.exists(
-                        os.path.join(data_dir, run_dir, "RTAComplete.txt")
-                    )  # Illumina
-                    or os.path.exists(
-                        os.path.join(data_dir, run_dir, ".sync_finished")  # ONT
-                    )
-                    or os.path.exists(
-                        os.path.join(data_dir, run_dir, "RunUploaded.json")  # Element
-                    )
-                ):
-                    required_size += run_sizes.get(self._get_run_type(run), 900)
-        # get available free space from the file system
-        try:
-            df_proc = sp.Popen(["df", path], stdout=sp.PIPE, stderr=sp.PIPE)
-            df_out, df_err = df_proc.communicate()
-            available_size = (
-                int(df_out.strip().decode("utf-8").split("\n")[-1].strip().split()[3])
-                / 1024
-                / 1024
-            )
-        except Exception as e:
-            logger.error(f"Evaluation of disk space failed with error {e}")
-            raise SystemExit
-        if available_size < required_size:
-            e_msg = f"Required space for encryption is {required_size}GB, but only {available_size}GB available"
-            subjt = f"Low space for encryption - {self.host_name}"
-            logger.error(e_msg)
-            misc.send_mail(subjt, e_msg, self.mail_recipients)
-            raise SystemExit
-
     def file_in_pdc(self, src_file, silent=True):
         """Check if the given files exist in PDC."""
         # dsmc will return zero/True only when file exists, it returns
@@ -381,8 +326,6 @@ class backup_utils:
             run.dst_key_encrypted = os.path.join(bk.keys_path, run.key_encrypted)
             tmp_files = [run.tar_encrypted, run.key_encrypted, run.key, run.flag]
             logger.info(f"Encryption of run {run.name} is now started")
-            # Check if there is enough space and exit if not
-            bk.avail_disk_space(run.path, run.name)
             # Check if the run in demultiplexed
             if not force and bk.check_demux:
                 if not misc.run_is_demuxed(
