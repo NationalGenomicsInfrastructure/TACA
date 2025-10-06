@@ -5,7 +5,7 @@ It handles metadata file creation, syncing to storage, local archiving and clean
 The script is written in pure Python to avoid installing external dependencies.
 """
 
-__version__ = "1.0.16"
+__version__ = "1.0.17"
 
 import argparse
 import logging
@@ -30,6 +30,7 @@ def main(args):
 
     # Start script
     logging.info(f"Starting script version {__version__}.")
+    print(args.nas_settings, type(args.nas_settings))
 
     run_paths = find_runs(dir_to_search=args.local_runs, exclude_dirs=args.exclude_dirs)
 
@@ -69,6 +70,7 @@ def handle_runs(run_paths, args):
                 destination=args.nas_runs,
                 rsync_log=args.rsync_log,
                 background=True,
+                settings=args.nas_settings,
             )
             sync_to_storage(
                 run_path=run_path,
@@ -242,6 +244,7 @@ def final_sync_and_archive(
         destination=args.nas_runs,
         rsync_log=args.rsync_log,
         background=False,
+        settings=args.nas_settings,
     ) and sync_to_storage(
         run_path=run_path,
         destination=args.miarka_runs,
@@ -266,6 +269,7 @@ def final_sync_and_archive(
         destination=args.nas_runs,
         rsync_log=args.rsync_log,
         background=False,
+        settings=args.nas_settings,
     ) and sync_to_storage(
         run_path=run_path,
         destination=args.miarka_runs,
@@ -501,7 +505,13 @@ def parse_args():
         "--miarka_settings",
         required=True,
         type=lambda s: s.split(" "),
-        help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+        help="String of Miarka extra rsync options separated by space, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+    )
+    parser.add_argument(
+        "--nas_settings",
+        required=True,
+        type=lambda s: s.split(","),
+        help="String of NAS extra rsync options separated by comma, e.g. '--exclude pod5*'.",
     )
     parser.add_argument(
         "--local_archive",
