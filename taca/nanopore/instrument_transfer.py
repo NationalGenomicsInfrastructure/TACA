@@ -30,7 +30,6 @@ def main(args):
 
     # Start script
     logging.info(f"Starting script version {__version__}.")
-    print(args.nas_settings, type(args.nas_settings))
 
     run_paths = find_runs(dir_to_search=args.local_runs, exclude_dirs=args.exclude_dirs)
 
