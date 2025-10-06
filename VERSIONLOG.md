@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251006.1
+
+Add option to specify rsync options to NAS
+
 ## 20250910.1
 
 Update Element analysis to handle AVITI24 Teton runs
