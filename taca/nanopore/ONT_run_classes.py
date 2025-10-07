@@ -377,6 +377,7 @@ class ONT_run:
                 logger.error(
                     f"{self.run_name}: ToulligQC report generation failed with exit code {exit_code}, skipping."
                 )
+                return
                 # raise AssertionError() TODO: put this back when we want to run toulligqc again
 
         else:
