@@ -69,7 +69,7 @@ def handle_runs(run_paths, args):
                 destination=args.nas_runs,
                 rsync_log=args.rsync_log,
                 background=True,
-                settings=["--exclude=pod5*"],
+                settings=args.nas_settings,
             )
             sync_to_storage(
                 run_path=run_path,
@@ -243,7 +243,7 @@ def final_sync_and_archive(
         destination=args.nas_runs,
         rsync_log=args.rsync_log,
         background=False,
-        settings=["--exclude=pod5*"],
+        settings=args.nas_settings,
     ) and sync_to_storage(
         run_path=run_path,
         destination=args.miarka_runs,
@@ -268,7 +268,7 @@ def final_sync_and_archive(
         destination=args.nas_runs,
         rsync_log=args.rsync_log,
         background=False,
-        settings=["--exclude=pod5*"],
+        settings=args.nas_settings,
     ) and sync_to_storage(
         run_path=run_path,
         destination=args.miarka_runs,
@@ -504,7 +504,13 @@ def parse_args():
         "--miarka_settings",
         required=True,
         type=lambda s: s.split(" "),
-        help="String of Miarka extra rsync options separated by space, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+        help="String of Miarka extra rsync options, e.g. '--chown=:ngi2016003 --chmod=Dg+s,g+rw'.",
+    )
+    parser.add_argument(
+        "--nas_settings",
+        required=True,
+        type=lambda s: s.split(" "),
+        help="String of NAS extra rsync options, e.g. '--exclude=pod5 --exclude=pod5_pass'.",
     )
     parser.add_argument(
         "--local_archive",

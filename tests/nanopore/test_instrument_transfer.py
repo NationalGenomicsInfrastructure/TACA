@@ -24,6 +24,7 @@ def setup_test_fixture():
     args.nas_runs = tmp.name + "/preproc"
     args.miarka_runs = tmp.name + "/hpc/promethion/"
     args.miarka_settings = ["--chown=:group", "--chmod=Dg+s,g+rw"]
+    args.nas_settings = ["--exclude=pod5*"]
     args.local_archive = tmp.name + "/data/nosync"
     args.minknow_logs = tmp.name + "/minknow_logs"
     args.rsync_log = tmp.name + "/data/rsync_log.txt"
