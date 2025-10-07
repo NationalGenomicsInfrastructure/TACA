@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251007.1
+
+Skip toulligqc on ONT data if pod5/fast5 is missing
+
 ## 20251006.1
 
 Add option to specify rsync options to NAS
