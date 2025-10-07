@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251007.2
+
+Skip check for pod5/fast5 files
+
 ## 20251007.1
 
 Skip toulligqc on ONT data if pod5/fast5 is missing
