@@ -377,7 +377,8 @@ class ONT_run:
                 logger.error(
                     f"{self.run_name}: ToulligQC report generation failed with exit code {exit_code}, skipping."
                 )
-                raise AssertionError()
+                return
+                # raise AssertionError() TODO: put this back when we want to run toulligqc again
 
         else:
             # Run ToulligQC
@@ -403,7 +404,11 @@ class ONT_run:
                     )
                     break
             if raw_data_path is None:
-                raise AssertionError(f"No seq data found in {self.run_abspath}")
+                # raise AssertionError(f"No seq data found in {self.run_abspath}")  # TODO: put this back when we want to run toulligqc again
+                logger.warning(
+                    f"No pod5/fast5 data found in {self.run_abspath}, skipping ToulligQC."
+                )
+                return
 
             # Load samplesheet, if any
             ss_glob = glob.glob(f"{self.run_abspath}/sample_sheet*.csv")
