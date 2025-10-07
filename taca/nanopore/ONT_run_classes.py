@@ -111,12 +111,12 @@ class ONT_run:
         assert self.has_file("/final_summary*.txt")
 
         # Raw seq files
-        assert any(
-            [
-                dir in os.listdir(self.run_abspath)
-                for dir in ["pod5", "pod5_pass", "fast5", "fast5_pass"]
-            ]
-        )
+        # assert any(
+        #    [
+        #        dir in os.listdir(self.run_abspath)
+        #        for dir in ["pod5", "pod5_pass", "fast5", "fast5_pass"]
+        #    ]
+        # ) TODO: put this back when we want to run toulligqc again
 
         # NGI files from instrument
         assert self.has_file("/pore_count_history.csv")
