@@ -404,7 +404,7 @@ class Run:
                 return "ongoing"
             elif found_demux_stats_file:
                 finished_count += 1  # TODO: check logs for errors/warnings when we know what to look for
-        if finished_count == len(sub_demux_dirs):
+        if finished_count and finished_count == len(sub_demux_dirs):
             return "finished"
         else:
             return "unknown"
