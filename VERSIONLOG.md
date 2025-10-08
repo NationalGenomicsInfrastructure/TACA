@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251008.1
+
+Remove return as code was unreachable
+
 ## 20251007.2
 
 Skip check for pod5/fast5 files
