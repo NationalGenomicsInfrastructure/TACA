@@ -119,7 +119,6 @@ def run_preprocessing(given_run):
                 f"It is available at https://genomics-status.scilifelab.se/flowcells_element/{run.NGI_run_id}"
             )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
-            return
 
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
