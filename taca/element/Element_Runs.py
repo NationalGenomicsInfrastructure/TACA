@@ -511,6 +511,15 @@ class Run:
         assert len(split_contents) == 2, (
             f"Could not split sample rows out of manifest {manifest_contents}"
         )
+
+        # Check for NULISA run by looking for R1Adapter in [SETTINGS] section
+        if "R1Adapter" in split_contents[0]:
+            logger.info(
+                f"Skipping demultiplexing manifest generation for {self} as it is a NULISA run"
+            )
+            manifest_paths = [manifest_to_split]
+            return manifest_paths
+
         sample_section = split_contents[1].strip().split("\n")
 
         # Split into header and rows
