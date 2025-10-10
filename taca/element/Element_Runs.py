@@ -906,7 +906,10 @@ class Run:
                 sub_demux_count = sample["sub_demux_count"]
                 # Skip PhiX
                 if lanenr == lane and sample_name != "PhiX":
-                    sample_tuple = (sample_name, sub_demux_count)
+                    sample_tuple = (
+                        sample_name,
+                        sub_demux_count,
+                    )  # FIXME: for NULISA we have the same sample on two lanes, in the same demux. might break something.
                     if sample_tuple not in unique_sample_demux:
                         project_dest = os.path.join(
                             self.run_dir, self.demux_dir, project
@@ -1050,6 +1053,7 @@ class Run:
                     index_assignment = [row for row in reader]
                 if len(index_assignment) == 0:
                     index_assignment = self.get_noindex_stats(sub_demux)
+
                 for sample in index_assignment:
                     if sample["Lane"] in lanes:
                         project_runstats_sample = [
@@ -1146,9 +1150,19 @@ class Run:
     def get_noindex_stats(self, sub_demux):
         # Get stats for NoIndex case
         # TODO: also get PercentPoloniesAssigned,Yield(Gb) from somewhere?
-        sub_demux_manifest = os.path.join(
-            self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
-        )
+        if os.path.exists(
+            os.path.join(self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv")
+        ):
+            sub_demux_manifest = os.path.join(
+                self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
+            )
+        else:  # find the manifest with glob matching AVITI_run_manifest_*_untrimmed.csv
+            sub_demux_manifest = glob.glob(
+                os.path.join(
+                    self.run_dir,
+                    "AVITI_run_manifest_*_untrimmed.csv",
+                )
+            )[0]
         # read sub_demux_manifest into a string
         with open(sub_demux_manifest) as f:
             manifest_csv = f.read()
