@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251010.1
+
+Adapt analysis demultiplex-element to handle NULISA runs
+
 ## 20251008.1
 
 Remove return as code was unreachable

@@ -909,7 +909,7 @@ class Run:
                     sample_tuple = (
                         sample_name,
                         sub_demux_count,
-                    )  # FIXME: for NULISA we have the same sample on two lanes, in the same demux. might break something.
+                    )
                     if sample_tuple not in unique_sample_demux:
                         project_dest = os.path.join(
                             self.run_dir, self.demux_dir, project
