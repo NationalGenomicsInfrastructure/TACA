@@ -404,7 +404,7 @@ class Run:
                 return "ongoing"
             elif found_demux_stats_file:
                 finished_count += 1  # TODO: check logs for errors/warnings when we know what to look for
-        if finished_count == len(sub_demux_dirs):
+        if finished_count and finished_count == len(sub_demux_dirs):
             return "finished"
         else:
             return "unknown"
@@ -511,6 +511,15 @@ class Run:
         assert len(split_contents) == 2, (
             f"Could not split sample rows out of manifest {manifest_contents}"
         )
+
+        # Check for NULISA run by looking for R1Adapter in [SETTINGS] section
+        if "R1Adapter" in split_contents[0]:
+            logger.info(
+                f"Skipping demultiplexing manifest generation for {self} as it is a NULISA run"
+            )
+            manifest_paths = [str(manifest_to_split)]
+            return manifest_paths
+
         sample_section = split_contents[1].strip().split("\n")
 
         # Split into header and rows
@@ -897,7 +906,10 @@ class Run:
                 sub_demux_count = sample["sub_demux_count"]
                 # Skip PhiX
                 if lanenr == lane and sample_name != "PhiX":
-                    sample_tuple = (sample_name, sub_demux_count)
+                    sample_tuple = (
+                        sample_name,
+                        sub_demux_count,
+                    )
                     if sample_tuple not in unique_sample_demux:
                         project_dest = os.path.join(
                             self.run_dir, self.demux_dir, project
@@ -1041,6 +1053,7 @@ class Run:
                     index_assignment = [row for row in reader]
                 if len(index_assignment) == 0:
                     index_assignment = self.get_noindex_stats(sub_demux)
+
                 for sample in index_assignment:
                     if sample["Lane"] in lanes:
                         project_runstats_sample = [
@@ -1137,9 +1150,19 @@ class Run:
     def get_noindex_stats(self, sub_demux):
         # Get stats for NoIndex case
         # TODO: also get PercentPoloniesAssigned,Yield(Gb) from somewhere?
-        sub_demux_manifest = os.path.join(
-            self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
-        )
+        if os.path.exists(
+            os.path.join(self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv")
+        ):
+            sub_demux_manifest = os.path.join(
+                self.run_dir, f"{self.NGI_run_id}_demux_{sub_demux}.csv"
+            )
+        else:  # find the manifest with glob matching AVITI_run_manifest_*_untrimmed.csv
+            sub_demux_manifest = glob.glob(
+                os.path.join(
+                    self.run_dir,
+                    "AVITI_run_manifest_*_untrimmed.csv",
+                )
+            )[0]
         # read sub_demux_manifest into a string
         with open(sub_demux_manifest) as f:
             manifest_csv = f.read()
