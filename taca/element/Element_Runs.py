@@ -517,7 +517,7 @@ class Run:
             logger.info(
                 f"Skipping demultiplexing manifest generation for {self} as it is a NULISA run"
             )
-            manifest_paths = [manifest_to_split]
+            manifest_paths = [str(manifest_to_split)]
             return manifest_paths
 
         sample_section = split_contents[1].strip().split("\n")
