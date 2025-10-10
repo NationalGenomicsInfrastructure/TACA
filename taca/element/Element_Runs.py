@@ -284,7 +284,9 @@ class Run:
             "RunType"
         )  # Sequencing, Cytoprofiling, wash or prime
         if self.run_type == "Cytoprofiling":
-            self.flowcell_id = self.run_name  # Teton runs don't have FlowcellID in the RunParameters.json, the PID is used instead
+            self.flowcell_id = self.run_name[
+                1:
+            ]  # Teton runs don't have FlowcellID in the RunParameters.json, the PID is used instead
         else:
             self.flowcell_id = run_parameters.get("FlowcellID")
         self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})
@@ -827,6 +829,16 @@ class Run:
             return True
         else:
             return False
+
+    def move_pressure_check_dir(self):
+        pressure_check_dir = self.run_dir + "_FlowcellPressureCheck"
+        if os.path.exists(pressure_check_dir):
+            shutil.move(pressure_check_dir, self.run_dir)
+            logger.info(f"Moved pressure check dir to {self.run_dir}")
+        else:
+            logger.info(
+                f"No pressure check dir found for {self}. Processing run anyway."
+            )
 
     # Clear all content under a dir
     def clear_dir(self, dir):
