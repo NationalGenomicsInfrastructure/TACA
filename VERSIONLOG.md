@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251010.2
+
+Move Aviti Teton FlowcellPressureCheck directories into run directory before processing the run
+
 ## 20251010.1
 
 Adapt analysis demultiplex-element to handle NULISA runs

@@ -123,7 +123,9 @@ def run_preprocessing(given_run):
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
         if transfer_status == "not started":
-            if not run.run_type == "Cytoprofiling":
+            if run.run_type == "Cytoprofiling":
+                run.move_pressure_check_dir()
+            else:
                 demux_results_dirs = glob.glob(
                     os.path.join(run.run_dir, "Demultiplexing_*")
                 )
