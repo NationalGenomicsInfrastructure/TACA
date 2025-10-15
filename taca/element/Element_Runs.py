@@ -1184,19 +1184,23 @@ class Run:
         runstats_json_path = os.path.join(
             self.run_dir, f"Demultiplexing_{sub_demux}", "RunStats.json"
         )
+        if not os.path.exists(runstats_json_path):
+            logger.error(
+                f"No RunStats.json file found for sub-demultiplexing {sub_demux}. Unable to process NoIndex samples. Skipping."
+            )
+            raise FileNotFoundError
         samples = []
         for sample_row in sample_rows:
             sample_name = sample_row.split(",")[0]
             lane = sample_row.split(",")[3]
             # Extract NumPolonies from RunStats.json
-            if os.path.exists(runstats_json_path):
-                with open(runstats_json_path) as json_file:
-                    demux_info = json.load(json_file)
-                demuxed_lanes = demux_info.get("Lanes")
-                for demuxed_lane in demuxed_lanes:
-                    if demuxed_lane.get("Lane") == int(lane):
-                        polonies = demuxed_lane.get("NumPolonies")
-                        break
+            with open(runstats_json_path) as json_file:
+                demux_info = json.load(json_file)
+            demuxed_lanes = demux_info.get("Lanes")
+            for demuxed_lane in demuxed_lanes:
+                if demuxed_lane.get("Lane") == int(lane):
+                    polonies = demuxed_lane.get("NumPolonies")
+                    break
             sample_info = {
                 "SampleName": sample_name,
                 "I1": "",
