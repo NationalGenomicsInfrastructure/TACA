@@ -1196,6 +1196,7 @@ class Run:
                 for demuxed_lane in demuxed_lanes:
                     if demuxed_lane.get("Lane") == int(lane):
                         polonies = demuxed_lane.get("NumPolonies")
+                        break
             sample_info = {
                 "SampleName": sample_name,
                 "I1": "",
