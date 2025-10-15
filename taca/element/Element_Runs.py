@@ -1178,16 +1178,22 @@ class Run:
         # read sub_demux_manifest into a string
         with open(sub_demux_manifest) as f:
             manifest_csv = f.read()
-        sample_row = (
-            manifest_csv.split("[SAMPLES]")[1].strip().split("\n")[-1]
+        sample_rows = (
+            manifest_csv.split("[SAMPLES]")[1].strip().split("\n")[1:]
         )  # ugh...
-        sample_name = sample_row.split(",")[0]
-        lane = sample_row.split(",")[3]
-        # Extract NumPolonies from RunStats.json
         runstats_json_path = os.path.join(
             self.run_dir, f"Demultiplexing_{sub_demux}", "RunStats.json"
         )
-        if os.path.exists(runstats_json_path):
+        if not os.path.exists(runstats_json_path):
+            logger.error(
+                f"No RunStats.json file found for sub-demultiplexing {sub_demux}. Unable to process NoIndex samples. Skipping."
+            )
+            raise FileNotFoundError
+        samples = []
+        for sample_row in sample_rows:
+            sample_name = sample_row.split(",")[0]
+            lane = sample_row.split(",")[3]
+            # Extract NumPolonies from RunStats.json
             with open(runstats_json_path) as json_file:
                 demux_info = json.load(json_file)
             demuxed_lanes = demux_info.get("Lanes")
@@ -1195,15 +1201,15 @@ class Run:
                 if demuxed_lane.get("Lane") == int(lane):
                     polonies = demuxed_lane.get("NumPolonies")
                     break
-        return [
-            {
+            sample_info = {
                 "SampleName": sample_name,
                 "I1": "",
                 "I2": "",
                 "Lane": lane,
                 "NumPoloniesAssigned": polonies,
             }
-        ]
+            samples.append(sample_info)
+        return samples
 
     # Aggregate stats in UnassignedSequences.csv
     def aggregate_stats_unassigned(

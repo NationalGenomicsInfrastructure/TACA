@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251015.1
+
+Bugfix: Get all available samples in get_noindex_stats
+
 ## 20251010.2
 
 Move Aviti Teton FlowcellPressureCheck directories into run directory before processing the run
