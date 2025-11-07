@@ -516,6 +516,7 @@ def run_preprocessing(run, software):
                 run.archive_run(CONFIG["storage"]["archive_dirs"][run.sequencer_type])
 
     if run:
+        logger.info(f"Starting processing of run {run}")
         # Determine the run type
         runObj = get_runObj(run, software)
         if not runObj:
@@ -524,7 +525,9 @@ def run_preprocessing(run, software):
             )
         else:
             _process(runObj)
+        logger.info(f"Finished processing run {run}")
     else:
+        logger.info("Starting processing of all runs in data directories")
         data_dirs = CONFIG.get("analysis").get("data_dirs")
         mail_recipients = CONFIG.get("mail", {}).get("recipients")
         for data_dir in data_dirs:
@@ -573,3 +576,4 @@ def run_preprocessing(run, software):
                             )
                             misc.send_mail(subject, message, mail_recipients)
                         pass
+        logger.info("Finished processing all runs in data directories")

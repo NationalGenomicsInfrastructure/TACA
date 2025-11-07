@@ -178,8 +178,11 @@ def run_preprocessing(given_run):
             return
 
     if given_run:
+        logger.info(f"Starting processing of run {given_run}")
         _process(given_run)
+        logger.info(f"Finished processing run {given_run}")
     else:
+        logger.info("Starting processing of all runs in data directories")
         data_dirs = CONFIG.get("element_analysis").get("data_dirs")
         for data_dir in data_dirs:
             # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID (PID for teton runs)
@@ -187,7 +190,7 @@ def run_preprocessing(given_run):
             for run in runs:
                 if "FlowcellPressureCheck" in run:
                     # Skip the pressure check runs (Teton runs)
-                    logger.info(f"Skipping {run}")  # TODO: should these be synced?
+                    logger.info(f"Skipping {run}")
                     continue
                 try:
                     _process(run)
@@ -205,3 +208,4 @@ def run_preprocessing(given_run):
                         f"There was an error processing the run {run}. Error: {e}"
                     )
                     pass
+        logger.info("Finished processing all runs in data directories")

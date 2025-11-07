@@ -1,15 +1,31 @@
 """TACA logging module for external scripts"""
 
 import logging
+from datetime import datetime
+
+# session id is the timestamp when this module is imported (script start)
+SESSION_ID = datetime.now().strftime("%y%m%d%H%M")
+
+
+class SessionFilter(logging.Filter):
+    """Attach session_id (script start timestamp) to every LogRecord."""
+
+    def filter(self, record):
+        record.session_id = SESSION_ID
+        return True
+
 
 # get root logger
 ROOT_LOG = logging.getLogger()
 ROOT_LOG.setLevel(logging.INFO)
 
-# Console logger
+# Console logger with session_id in format
+formatter = logging.Formatter(
+    "%(asctime)s - %(session_id)s - %(name)s - %(levelname)s - %(message)s"
+)
 stream_handler = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 stream_handler.setFormatter(formatter)
+stream_handler.addFilter(SessionFilter())
 ROOT_LOG.addHandler(stream_handler)
 
 LOG_LEVELS = {
@@ -36,5 +52,6 @@ def init_logger_file(log_file, log_level="INFO"):
     file_handle = logging.FileHandler(log_file)
     file_handle.setLevel(log_level)
     file_handle.setFormatter(formatter)
+    file_handle.addFilter(SessionFilter())
     ROOT_LOG.addHandler(file_handle)
     ROOT_LOG.addHandler(stream_handler)

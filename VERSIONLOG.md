@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20251106.1
+
+Improve logging
+
 ## 20251015.1
 
 Bugfix: Get all available samples in get_noindex_stats

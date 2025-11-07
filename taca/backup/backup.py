@@ -373,6 +373,7 @@ class backup_utils:
     @classmethod
     def encrypt_runs(cls, run, force):
         """Encrypt the runs that have been collected."""
+        logger.info("Started taca backup encrypt")
         bk = cls(run)
         bk.collect_runs(ext=".tar")
         logger.info(f"In total, found {len(bk.runs)} run(s) to be encrypted")
@@ -506,10 +507,12 @@ class backup_utils:
                 logger.info(
                     f"Encryption of run {run.name} is successfully done, removing run folder tarball"
                 )
+        logger.info("Finished taca backup encrypt")
 
     @classmethod
     def pdc_put(cls, run):
         """Archive the collected runs to PDC."""
+        logger.info("Started taca backup put_data")
         bk = cls(run)
         bk.collect_runs(ext=".tar.gpg", filter_by_ext=True)
         logger.info(f"In total, found {len(bk.runs)} run(s) to send PDC")
@@ -577,3 +580,4 @@ class backup_utils:
                             bk._move_run_to_archived(run)
                         continue
                 logger.warning(f"Sending file {run.tar_encrypted} to PDC failed")
+        logger.info("Finished taca backup put_data")

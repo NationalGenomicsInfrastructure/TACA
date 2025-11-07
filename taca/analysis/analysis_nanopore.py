@@ -119,10 +119,13 @@ def ont_transfer(run_abspath: str | None):
     """
 
     if run_abspath:
+        logger.info(f"Starting processing of run {run_abspath}")
         process_run(ONT_run(run_abspath))
+        logger.info(f"Finished processing run {run_abspath}")
 
     # If no run is specified, locate all runs
     else:
+        logger.info("Starting processing of all runs in data directories")
         data_dirs = CONFIG["nanopore_analysis"]["data_dirs"]
         ignore_dirs = CONFIG["nanopore_analysis"]["ignore_dirs"]
 
@@ -137,6 +140,7 @@ def ont_transfer(run_abspath: str | None):
                     logger.info(e)
                 except Exception as e:
                     send_error_mail(os.path.basename(run_dir), e)
+        logger.info("Finished processing all runs in data directories")
 
 
 class WaitForRun(Exception):
