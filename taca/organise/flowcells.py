@@ -11,9 +11,11 @@ from taca.utils.config import CONFIG
 logger = logging.getLogger(__name__)
 
 
-def get_flowcell_object(flowcell, project):
+def get_flowcell_object(flowcell, project, include_pod5=False):
     if re.match(filesystem.RUN_RE_ONT, flowcell):
-        return NanoporeFlowcell(flowcell=flowcell, project_id=project)
+        return NanoporeFlowcell(
+            flowcell=flowcell, project_id=project, include_pod5=include_pod5
+        )
     elif re.match(filesystem.RUN_RE_ILLUMINA, flowcell):
         return IlluminaFlowcell(flowcell=flowcell, project_id=project)
     elif re.match(filesystem.RUN_RE_ELEMENT, flowcell):
@@ -44,13 +46,14 @@ class Flowcell:
 class NanoporeFlowcell(Flowcell):
     """Defines a Nanopore Flowcell"""
 
-    def __init__(self, flowcell, project_id):
+    def __init__(self, flowcell, project_id, include_pod5=False):
         super().__init__(flowcell, project_id)
         self.destination_path = CONFIG.get("organise").get("nanopore_path")
         self.organised_project_dir = os.path.join(self.destination_path, project_id)
         self.tar_file = self.fc_id + ".tar"
         self.tar_path = os.path.join(self.organised_project_dir, self.tar_file)
         self.md5_path = self.tar_path + ".md5"
+        self.include_pod5 = include_pod5
 
     def organise_data(self):
         """Tarball data into ONT_TAR"""
@@ -59,7 +62,18 @@ class NanoporeFlowcell(Flowcell):
         tar_err = os.path.join(self.organised_project_dir, "tar.err")
         with filesystem.chdir(self.incoming_path):
             with open(tar_err, "w") as error_file:
-                tar_command = ["tar", "-cvf", self.tar_path, self.fc_id]
+                if not self.include_pod5:
+                    # exclude pod5 files from tarball
+                    tar_command = [
+                        "tar",
+                        "--exclude=pod5*",
+                        "-cvf",
+                        self.tar_path,
+                        self.fc_id,
+                    ]
+                else:
+                    # include pod5 files from tarball
+                    tar_command = ["tar", "-cvf", self.tar_path, self.fc_id]
                 result = subprocess.run(tar_command, stderr=error_file)
                 if result.returncode != 0:
                     logger.error(
