@@ -1,5 +1,9 @@
 # TACA Version Log
 
+##20251121.1
+
+Exclude pod5 from delivery by default
+
 ## 20251106.1
 
 Improve logging
