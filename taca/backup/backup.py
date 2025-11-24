@@ -281,7 +281,9 @@ class backup_utils:
 
     def _log_pdc_statusdb(self, run):
         """Log the time stamp in statusDB if a file is succussfully sent to PDC."""
-        if re.match(filesystem.RUN_RE_ELEMENT, run):
+        if re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
+            filesystem.RUN_RE_TETON, run
+        ):
             try:
                 element_db_connection = statusdb.ElementRunsConnection(
                     self.couch_info, dbname="element_runs"
