@@ -63,11 +63,11 @@ class NanoporeFlowcell(Flowcell):
         with filesystem.chdir(self.incoming_path):
             with open(tar_err, "w") as error_file:
                 tar_command = [
-                      "tar",
-                      *(["--exclude=pod5*"] if not self.include_pod5 else []),
-                      "-cvf",
-                      self.tar_path,
-                      self.fc_id,
+                    "tar",
+                    *(["--exclude=pod5*"] if not self.include_pod5 else []),
+                    "-cvf",
+                    self.tar_path,
+                    self.fc_id,
                 ]
                 result = subprocess.run(tar_command, stderr=error_file)
                 if result.returncode != 0:
