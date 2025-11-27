@@ -17,7 +17,7 @@ from taca.organise import organise
     "--include_pod5",
     is_flag=True,
     default=False,
-    help="Include pod5 files when organising Nanopore flowcells. Defaule is False.",
+    help="Include pod5 files when organising Nanopore flowcells. Default is False.",
 )
 @click.argument("flowcells")
 def organise_flowcells(flowcells, project, include_pod5):
