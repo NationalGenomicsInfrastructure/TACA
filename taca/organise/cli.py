@@ -13,8 +13,14 @@ from taca.organise import organise
     required=True,
     help="Project ID (e.g. P12345)",
 )  # future todo: option to organise all flowcells in a project
+@click.option(
+    "--include_pod5",
+    is_flag=True,
+    default=False,
+    help="Include pod5 files when organising Nanopore flowcells. Default is False.",
+)
 @click.argument("flowcells")
-def organise_flowcells(flowcells, project):
+def organise_flowcells(flowcells, project, include_pod5):
     """Organise FLOWCELLS.
 
     FLOWCELLS is the name of one or more sequencing flowcells, separated by a comma. e.g.:
@@ -22,4 +28,4 @@ def organise_flowcells(flowcells, project):
     """
     flowcells_to_organise = flowcells.split(",")
     for fc in flowcells_to_organise:
-        organise.organise_flowcell(fc, project)
+        organise.organise_flowcell(fc, project, include_pod5)
