@@ -13,7 +13,9 @@ from pathlib import Path
 import pandas as pd
 from Levenshtein import distance
 
+from taca.utils.config import CONFIG
 from taca.utils.filesystem import chdir
+from taca.utils.misc import send_mail
 from taca.utils.statusdb import ElementRunsConnection
 
 logger = logging.getLogger(__name__)
@@ -724,7 +726,22 @@ class Run:
                 )
                 settings_kvs["I1MismatchThreshold"] = str(i1_mm_threshold)
                 settings_kvs["I2MismatchThreshold"] = str(i2_mm_threshold)
-
+                if i1_mm_threshold == 0 or i2_mm_threshold == 0:
+                    email_subject = (
+                        f"MismatchThreshold(s) set to 0 for {self.NGI_run_id}"
+                    )
+                    email_message = (
+                        f"During demultiplexing manifest generation for run {self.NGI_run_id}, "
+                        "the minimum distance between some index sequences was at or below 2. "
+                        "As a result, the I1MismatchThreshold and/or I2MismatchThreshold was set to 0.\n\n"
+                        f"Lanes: {', '.join(map(str, group['Lane'].unique()))}\n"
+                        f"I1MismatchThreshold: {i1_mm_threshold}\n"
+                        f"I2MismatchThreshold: {i2_mm_threshold}\n\n"
+                        "Please check that this is acceptable and inform the user."
+                    )
+                    send_mail(
+                        email_subject, email_message, CONFIG["mail"]["recipients"]
+                    )
                 # Add PhiX to group
                 group = pd.concat([group, group_controls], axis=0, ignore_index=True)
 
