@@ -154,6 +154,14 @@ def test_process_on_finished_run(aviti_fixture):
     # Sub-mock configuration
     mocks["mock_db"].return_value.check_db_run_status.return_value = "ongoing"
     mocks["mock_db"].return_value.upload_to_statusdb.return_value = None
+    # set mocks["mock_mail"] to mock taca.element.Element_Runs.send_mail instead
+    # of taca.analysis.analysis_element.send_mail
+    mocks["mock_mail"].stop()
+    mocks["mock_mail"] = patch("taca.element.Element_Runs.send_mail").start()
+    patch(
+        "taca.element.Element_Runs.CONFIG",
+        new={**get_config(tmp), "mail": {"recipients": ["<EMAIL>"]}},
+    ).start()
 
     # Add metadata files
     run_dir = create_element_run_dir(
