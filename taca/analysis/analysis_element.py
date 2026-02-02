@@ -153,7 +153,7 @@ def run_preprocessing(given_run):
             email_subject = f"{run} has been transferred to the analysis cluster"
             email_message = (
                 f"Rsync of data for run {run} to the analysis cluster has finished!\n"
-                f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run}"
+                f"The run is available at https://genomics-status.scilifelab.se/flowcells_element/{run.NGI_run_id}"
             )
             send_mail(email_subject, email_message, CONFIG["mail"]["recipients"])
 
