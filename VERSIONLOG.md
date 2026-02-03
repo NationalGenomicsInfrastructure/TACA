@@ -2,7 +2,7 @@
 
 ## 20260203.1
 
-Set mask to N* if read or index is 0 for AVITI
+Set mask to N\* if read or index is 0 for AVITI
 
 ## 20260127.1
 
