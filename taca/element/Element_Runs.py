@@ -64,9 +64,9 @@ def get_mask(
     ], f"Mask prefix {prefix} not recognized"
     assert keep in ["bases", "Ns"], f"Keep option {keep} not recognized"
 
-    # Handle no-input cases
+    # Handle no-input cases (e.g. read setups like 144nt(R1)-6nt(I1)-0nt(I2)-0nt(R2))
     if seq == "":
-        mask = f"{prefix}N{cycles_used}"
+        mask = f"{prefix}N*"
         return mask
 
     # Define dict to convert base to mask classifier

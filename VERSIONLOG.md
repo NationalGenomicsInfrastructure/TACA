@@ -1,14 +1,18 @@
 # TACA Version Log
 
-##20260127.1
+## 20260203.1
+
+Set mask to N\* if read or index is 0 for AVITI
+
+## 20260127.1
 
 Email when MismatchThreshold is set to 0 for AVITI runs
 
-##20251127.1
+## 20251127.1
 
 Enable archiving of Aviti Teton runs to PDC
 
-##20251121.1
+## 20251121.1
 
 Exclude pod5 from delivery by default
 
