@@ -188,30 +188,28 @@ class backup_utils:
     def _get_run_type(self, run):
         """Returns run type based on the flowcell name."""
         run_type = ""
-        try:
-            if "_A0" in run:
-                run_type = "novaseq"
-            elif re.mathch("^\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9\-]+$", run):
-                run_type = "miseq"
-            elif re.mathch("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]{10}-SC3$", run):
-                run_type = "MiSeqi100"
-            elif re.match("^\d{6}_[A-Z0-9]+_\d{3}_[A-Z0-9]+$", run):
-                run_type = "nextseq"
-            elif re.mathch("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]+$", run):
-                run_type = "NovaSeqXPlus"
-            elif re.mathch("^\d{8}_\d{4}_MN[A-Z0-9]+_[A-Z0-9]+_[a-f0-9]{8}$", run):
-                run_type = "minion"
-            elif re.match(
-                "^(\d{8})_(\d{4})_([1-3][A-H])_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)$", run
-            ):
-                run_type = "promethion"
-            elif re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
-                filesystem.RUN_RE_TETON, run
-            ):
-                run_type = "aviti"
-            else:
-                run_type = ""
-        except:
+        if "_A0" in run:
+            run_type = "novaseq"
+        elif re.match("^\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9\-]+$", run):
+            run_type = "miseq"
+        elif re.match("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]{10}-SC3$", run):
+            run_type = "MiSeqi100"
+        elif re.match("^\d{6}_[A-Z0-9]+_\d{3}_[A-Z0-9]+$", run):
+            run_type = "nextseq"
+        elif re.match("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]+$", run):
+            run_type = "NovaSeqXPlus"
+        elif re.match("^\d{8}_\d{4}_MN[A-Z0-9]+_[A-Z0-9]+_[a-f0-9]{8}$", run):
+            run_type = "minion"
+        elif re.match(
+            "^(\d{8})_(\d{4})_([1-3][A-H])_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)$", run
+        ):
+            run_type = "promethion"
+        elif re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
+            filesystem.RUN_RE_TETON, run
+        ):
+            run_type = "aviti"
+        else:
+            run_type = ""
             logger.warning(f"Could not fetch run type for run {run}")
         return run_type
 
@@ -524,7 +522,7 @@ class backup_utils:
         logger.info("Finished taca backup encrypt")
 
     @classmethod
-    def pdc_put(cls, run):
+    def pdc_put(cls, run): 
         """Archive the collected runs to PDC."""
         logger.info("Started taca backup put_data")
         bk = cls(run)
