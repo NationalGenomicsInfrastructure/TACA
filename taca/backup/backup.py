@@ -522,7 +522,7 @@ class backup_utils:
         logger.info("Finished taca backup encrypt")
 
     @classmethod
-    def pdc_put(cls, run): 
+    def pdc_put(cls, run):
         """Archive the collected runs to PDC."""
         logger.info("Started taca backup put_data")
         bk = cls(run)
