@@ -298,7 +298,7 @@ class backup_utils:
                 logger.warning(
                     f'Not able to log "pdc_archived" timestamp for run {run.name}'
                 )
-        elif run.run_type in ["novaseq", "miseq", "nextseq", "NovaSeqXPlus"]:
+        elif run.run_type in ["novaseq", "miseq", "nextseq", "NovaSeqXPlus"]: # ONT and MiSeqi100 are not in the database
             try:
                 run_vals = run.name.split("_")
                 if len(run_vals[0]) == 8:
