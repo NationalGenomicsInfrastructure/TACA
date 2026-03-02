@@ -126,7 +126,7 @@ class StageData(Stage):
         # Generate md5sums
         # Symlink all data to DELIVERY/PID/TIMESTAMP
         # Make xml files
-        pass
+        logger.warning("Staging data in DATA is currently not implemented.")
 
 
 class StageAnalysis(Stage):
@@ -140,7 +140,7 @@ class StageAnalysis(Stage):
         # For BP, Make a list of samples that should be delivered
         # Generate md5sums
         # Symlink all data and reports to DELIVERY/PID/DDSID
-        pass
+        logger.warning("Staging analysis data is currently not implemented.")
 
 
 class Upload:
