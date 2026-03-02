@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class run_vars:
     """A simple variable storage class."""
 
-    def __init__(self, run, archive_path):
+    def __init__(self, run, archive_path, run_type):
         self.abs_path = os.path.abspath(run)
         self.path, self.name = os.path.split(self.abs_path)
         self.name = self.name.split(".", 1)[0]
@@ -26,6 +26,7 @@ class run_vars:
         self.key = f"{self.name}.key"
         self.key_encrypted = f"{self.name}.key.gpg"
         self.tar_encrypted = os.path.join(archive_path, f"{self.name}.tar.gpg")
+        self.run_type = run_type
 
 
 class backup_utils:
@@ -67,7 +68,7 @@ class backup_utils:
         if self.run:
             run_type = self._get_run_type(self.run)
             archive_path = self.archive_dirs[run_type]
-            run = run_vars(self.run, archive_path)
+            run = run_vars(self.run, archive_path, run_type)
             if not (
                 re.match(filesystem.RUN_RE_ILLUMINA, run.name)
                 or re.match(filesystem.RUN_RE_ONT, run.name)
@@ -100,13 +101,16 @@ class backup_utils:
                     ) and item not in self.runs:
                         run_type = self._get_run_type(item)
                         archive_path = self.archive_dirs[run_type]
-                        run = run_vars(os.path.join(archive_dir, item), archive_path)
+                        run = run_vars(
+                            os.path.join(archive_dir, item), archive_path, run_type
+                        )
                         if self._is_ready_to_archive(run, ext):
                             self.runs.append(run)
 
     def avail_disk_space(self, path, run):
         """Check the space on file system based on parent directory of the run."""
         # not able to fetch runtype use the max size as precaution, size units in GB
+        # TODO: If we want this it needs to be fixed to work on ngi_data and also add MiSeqi100
         run_sizes = {
             "novaseq": 1800,
             "miseq": 20,
@@ -184,28 +188,28 @@ class backup_utils:
     def _get_run_type(self, run):
         """Returns run type based on the flowcell name."""
         run_type = ""
-        try:
-            if "_A0" in run:
-                run_type = "novaseq"
-            elif "-" in run.split("_")[-1]:
-                run_type = "miseq"
-            elif "_NS" in run or "_VH" in run:
-                run_type = "nextseq"
-            elif "_LH" in run:
-                run_type = "NovaSeqXPlus"
-            elif "_MN" in run:
-                run_type = "minion"
-            elif re.match(
-                "^(\d{8})_(\d{4})_([1-3][A-H])_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)$", run
-            ):
-                run_type = "promethion"
-            elif re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
-                filesystem.RUN_RE_TETON, run
-            ):
-                run_type = "aviti"
-            else:
-                run_type = ""
-        except:
+        if "_A0" in run:
+            run_type = "novaseq"
+        elif re.match("^\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9\-]+$", run):
+            run_type = "miseq"
+        elif re.match("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]{10}-SC3$", run):
+            run_type = "MiSeqi100"
+        elif re.match("^\d{6}_[A-Z0-9]+_\d{3}_[A-Z0-9]+$", run):
+            run_type = "nextseq"
+        elif re.match("^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]+$", run):
+            run_type = "NovaSeqXPlus"
+        elif re.match("^\d{8}_\d{4}_MN[A-Z0-9]+_[A-Z0-9]+_[a-f0-9]{8}$", run):
+            run_type = "minion"
+        elif re.match(
+            "^(\d{8})_(\d{4})_([1-3][A-H])_([0-9a-zA-Z]+)_([0-9a-zA-Z]+)$", run
+        ):
+            run_type = "promethion"
+        elif re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
+            filesystem.RUN_RE_TETON, run
+        ):
+            run_type = "aviti"
+        else:
+            run_type = ""
             logger.warning(f"Could not fetch run type for run {run}")
         return run_type
 
@@ -281,24 +285,27 @@ class backup_utils:
 
     def _log_pdc_statusdb(self, run):
         """Log the time stamp in statusDB if a file is succussfully sent to PDC."""
-        if re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
-            filesystem.RUN_RE_TETON, run
-        ):
+        if run.run_type == "aviti":
             try:
                 element_db_connection = statusdb.ElementRunsConnection(
                     self.couch_info, dbname="element_runs"
                 )
-                run_doc = element_db_connection.get_db_entry(run)["doc"]
+                run_doc = element_db_connection.get_db_entry(run.name)["doc"]
                 run_doc["pdc_archived"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 run_doc["run_status"] = "archived"
                 element_db_connection.upload_to_statusdb(run_doc)
             except:
                 logger.warning(
-                    f'Not able to log "pdc_archived" timestamp for run {run}'
+                    f'Not able to log "pdc_archived" timestamp for run {run.name}'
                 )
-        else:
+        elif run.run_type in [
+            "novaseq",
+            "miseq",
+            "nextseq",
+            "NovaSeqXPlus",
+        ]:  # ONT and MiSeqi100 are not in the database
             try:
-                run_vals = run.split("_")
+                run_vals = run.name.split("_")
                 if len(run_vals[0]) == 8:
                     run_date = run_vals[0][2:]
                 else:
@@ -316,12 +323,16 @@ class backup_utils:
                 doc["pdc_archived"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 couch_connection.save_db_doc(doc=doc, db=self.couch_info["db"])
                 logger.info(
-                    f'Logged "pdc_archived" timestamp for fc {run} in statusdb doc "{doc["_id"]}"'
+                    f'Logged "pdc_archived" timestamp for fc {run.name} in statusdb doc "{doc["_id"]}"'
                 )
             except:
                 logger.warning(
-                    f'Not able to log "pdc_archived" timestamp for run {run}'
+                    f'Not able to log "pdc_archived" timestamp for run {run.name}'
                 )
+        else:
+            logger.warning(
+                f"Not able to log 'pdc_archived' timestamp for run {run.name} as run type {run.run_type} is not in the database"
+            )
 
     def _is_ready_to_archive(self, run, ext):
         """Check if the run to be encrypted has finished sequencing and has been copied completely to ngi_data"""
@@ -336,11 +347,11 @@ class backup_utils:
                 and (not self.file_in_pdc(run.tar_encrypted))
             )
             or (
-                self._get_run_type(run.name) in ["promethion", "minion"]
+                self.run_type in ["promethion", "minion"]
                 and os.path.exists(os.path.join(run_path, ".sync_finished"))
             )
             or (
-                self._get_run_type(run.name) == "aviti"
+                self.run_type == "aviti"
                 and os.path.exists(os.path.join(run_path, "RunUploaded.json"))
             )
         ):
@@ -369,8 +380,7 @@ class backup_utils:
 
     def _move_run_to_archived(self, run):
         """Move a run folder from nosync to archived"""
-        run_type = self._get_run_type(run.name)
-        archived_path = self.archived_dirs[run_type]
+        archived_path = self.archived_dirs[run.run_type]
         if os.path.isdir(archived_path):
             logger.info(f"Moving run {run.name} to the archived folder")
             shutil.move(run.name, archived_path)
@@ -390,19 +400,19 @@ class backup_utils:
             tmp_files = [run.tar_encrypted, run.key_encrypted, run.key, run.flag]
             logger.info(f"Encryption of run {run.name} is now started")
             # Check if there is enough space and exit if not
-            bk.avail_disk_space(run.path, run.name)
+            # bk.avail_disk_space(run.path, run.name) # TODO: This check is broken for ngi_data. We need to fix it or remove it
             # Check if the run in demultiplexed
             if not force and bk.check_demux:
-                if not misc.run_is_demuxed(
-                    run, bk.couch_info, bk._get_run_type(run.name)
-                ):
-                    logger.warning(
-                        f"Run {run.name} is not demultiplexed yet, so skipping it"
-                    )
-                    continue
-                logger.info(
-                    f"Run {run.name} is demultiplexed and proceeding with encryption"
-                )
+                if (
+                    not run.run_type == "MiSeqi100"
+                ):  # Don't care about demux for MiSeqi100
+                    if not misc.run_is_demuxed(
+                        run, bk.couch_info, bk._get_run_type(run.name)
+                    ):
+                        logger.warning(
+                            f"Run {run.name} is not demultiplexed yet, so skipping it"
+                        )
+                        continue
             with filesystem.chdir(run.path):
                 # skip run if already ongoing
                 if os.path.exists(run.flag):
@@ -580,7 +590,7 @@ class backup_utils:
                             )
                             bk.log_archived_run(run.tar_encrypted)
                             if bk.couch_info:
-                                bk._log_pdc_statusdb(run.name)
+                                bk._log_pdc_statusdb(run)
                             bk._clean_tmp_files(
                                 [run.tar_encrypted, run.dst_key_encrypted, run.flag]
                             )

@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260225.1
+
+Add support for backup of MiSeqi100 to PDC
+
 ## 20260203.1
 
 Set mask to N\* if read or index is 0 for AVITI
