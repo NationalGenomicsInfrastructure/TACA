@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260302.1
+
+Add wanings for methods that have not yet been implemented.
+
 ## 20260225.1
 
 Add support for backup of MiSeqi100 to PDC
