@@ -347,11 +347,11 @@ class backup_utils:
                 and (not self.file_in_pdc(run.tar_encrypted))
             )
             or (
-                self.run_type in ["promethion", "minion"]
+                run.run_type in ["promethion", "minion"]
                 and os.path.exists(os.path.join(run_path, ".sync_finished"))
             )
             or (
-                self.run_type == "aviti"
+                run.run_type == "aviti"
                 and os.path.exists(os.path.join(run_path, "RunUploaded.json"))
             )
         ):
