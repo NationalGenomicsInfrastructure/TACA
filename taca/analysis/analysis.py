@@ -271,7 +271,14 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
         subprocess.call(
             ["tar"]
             + exclude_options_for_tar
-            + ["-cvf", archive, "-C", run_dir_path, dir_name]
+            + [
+                "-cvf",
+                archive,
+                "--warning=no-file-changed",
+                "-C",
+                run_dir_path,
+                dir_name,
+            ]
         )
     except subprocess.CalledProcessError as e:
         logger.error("Error creating tar archive")
