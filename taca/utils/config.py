@@ -2,7 +2,7 @@
 
 import yaml
 
-CONFIG = {}
+CONFIG: dict = {}
 
 
 def load_config(config_file):

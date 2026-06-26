@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260626.1
+
+ONT transfer script fix: don't sync runs that didn't start
+
 ## 20260428.1
 
 Remove upper bound on magnitude of project and sample numbers

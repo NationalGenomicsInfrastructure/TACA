@@ -59,7 +59,20 @@ def handle_runs(run_paths, args):
     # Iterate over runs
     for run_path in run_paths:
         logging.info(f"Processing run at '{run_path}'")
-
+        # To prevent syncing runs that failed to start sequencing, skip run if none of the following directories exist: "fastq_fail", "fastq_pass", "bam_fail", "bam_pass", "pod5_fail", "pod5_pass"
+        required_dirs = [
+            "fastq_fail",
+            "fastq_pass",
+            "bam_fail",
+            "bam_pass",
+            "pod5_fail",
+            "pod5_pass",
+        ]
+        if not any(os.path.exists(os.path.join(run_path, d)) for d in required_dirs):
+            logging.info(
+                f"{os.path.basename(run_path)}: Skipping run as none of the required directories exist."
+            )
+            continue
         dump_path(run_path)
         dump_pore_count_history(run_path=run_path, pore_counts=pore_counts)
 

@@ -113,6 +113,7 @@ def test_main_ongoing_run(mock_popen, mock_check_output, mock_run, setup_test_fi
     # Set up ONT run
     run_path = f"{args.local_runs}/experiment/sample/{DUMMY_RUN_NAME}"
     os.makedirs(run_path)
+    os.makedirs(f"{run_path}/fastq_pass")
 
     # Start testing
     instrument_transfer.main(args)
