@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260626.1
+
+ONT transfer script fix: don't sync runs that didn't start
+
 ## 20260421.1
 
 Fix tar warning message
