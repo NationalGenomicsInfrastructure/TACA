@@ -4,6 +4,10 @@
 
 ONT transfer script fix: don't sync runs that didn't start
 
+## 20260428.1
+
+Remove upper bound on magnitude of project and sample numbers
+
 ## 20260421.1
 
 Fix tar warning message
