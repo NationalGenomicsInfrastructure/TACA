@@ -318,7 +318,7 @@ def get_ss_projects_illumina(run_dir):
     """Fetches project, FC, lane & sample (sample-run) status for a given folder for illumina runs"""
     proj_tree = Tree()
     lane_pattern = re.compile("^([1-8]{1,2})$")
-    sample_proj_pattern = re.compile("^((P[0-9]{3,5})_[0-9]{3,5})")
+    sample_proj_pattern = re.compile(r"^((P\d{3,})_\d{3,})")
     run_name = os.path.basename(run_dir)
     run_date = run_name.split("_")[0]
     if len(run_date) == 6:
@@ -376,7 +376,7 @@ def get_ss_projects_illumina(run_dir):
         miseq = True
         lanes = str(1)
         # Pattern is a bit more rigid since we're no longer also checking for lanes
-        sample_proj_pattern = re.compile("^((P[0-9]{3,5})_[0-9]{3,5})$")
+        sample_proj_pattern = re.compile(r"^((P\d{3,})_\d{3,})$")
         instrument = "MiSeq"
     elif "NovaSeqXPlus" in runtype:
         FCID_samplesheet_origin = os.path.join(
