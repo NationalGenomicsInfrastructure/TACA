@@ -268,7 +268,7 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
         if exclude_lane != "":
             exclude_options_for_tar += dir_for_excluding_lane
 
-        subprocess.call(
+        subprocess.check_call(
             ["tar"]
             + exclude_options_for_tar
             + [
@@ -289,7 +289,7 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
     try:
         f = open(md5file, "w")
         os.chdir(run_dir_path)
-        subprocess.call(["md5sum", os.path.basename(archive)], stdout=f)
+        subprocess.check_call(["md5sum", os.path.basename(archive)], stdout=f)
         f.close()
     except subprocess.CalledProcessError as e:
         logger.error("Error creating md5 file")
