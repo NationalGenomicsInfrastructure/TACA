@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260828.1
+
+Change regex sequences to raw string to escape warnings
+
 ## 20260827.1
 
 Bugfix: catch failed tar and md5sum subprocesses

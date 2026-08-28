@@ -30,9 +30,9 @@ def collect_runs():
 
     # Pattern explained:
     # 6-8Digits_(maybe ST-)AnythingLetterornumberNumber_Number_AorBLetterornumberordash
-    illumina_rundir_re = re.compile("\d{6,8}_[ST-]*\w+\d+_\d+_[AB]?[A-Z0-9\-]+")
+    illumina_rundir_re = re.compile(r"\d{6,8}_[ST-]*\w+\d+_\d+_[AB]?[A-Z0-9\-]+")
     # E.g. 20250121_AV242106_B2425434199
-    element_rundir_re = re.compile("\d{8}_AV242106_[AB]\d+")
+    element_rundir_re = re.compile(r"\d{8}_AV242106_[AB]\d+")
 
     for inst_brand in CONFIG["bioinfo_tab"]["data_dirs"]:
         for data_dir in CONFIG["bioinfo_tab"]["data_dirs"][inst_brand]:
