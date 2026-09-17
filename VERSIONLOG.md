@@ -2,7 +2,7 @@
 
 ## 20260917.1
 
-Bugfix: Add a delay to avoid runfolder transfer crash of small runs
+Bugfix: Flush file and die to avoid runfolder transfer crash of small runs
 
 ## 20260828.1
 
