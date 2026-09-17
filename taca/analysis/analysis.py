@@ -220,13 +220,19 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
     try:
         with open(new_sample_sheet, "w") as nss:
             nss.write(extract_project_samplesheet(original_sample_sheet, pid_list))
+            nss.flush()
+            os.fsync(nss.fileno())
+        dir_fd = os.open(os.path.dirname(new_sample_sheet), os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
     except OSError as e:
         logger.error(
             "An error occured while parsing the samplesheet. "
             "Please check the sample sheet and try again."
         )
         raise e
-    time.sleep(3)  # Wait for 3 seconds to ensure the file is written before proceeding
     # Create a tar archive of the runfolder
     dir_name = os.path.basename(run_dir)
     archive = run_dir + "_" + "_".join(pid_list) + ".tar"
