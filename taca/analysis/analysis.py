@@ -220,7 +220,8 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
     try:
         with open(new_sample_sheet, "w") as nss:
             nss.write(extract_project_samplesheet(original_sample_sheet, pid_list))
-            nss.flush()
+            # Make sure to flush the file and dir to avoid tar crashing
+            nss.flush() 
             os.fsync(nss.fileno())
         dir_fd = os.open(os.path.dirname(new_sample_sheet), os.O_RDONLY)
         try:
