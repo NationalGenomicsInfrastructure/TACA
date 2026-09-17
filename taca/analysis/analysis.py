@@ -226,7 +226,7 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
             "Please check the sample sheet and try again."
         )
         raise e
-
+    time.sleep(3)  # Wait for 3 seconds to ensure the file is written before proceeding
     # Create a tar archive of the runfolder
     dir_name = os.path.basename(run_dir)
     archive = run_dir + "_" + "_".join(pid_list) + ".tar"
