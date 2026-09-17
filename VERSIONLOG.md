@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260917.1
+
+Bugfix: Flush file and die to avoid runfolder transfer crash of small runs
+
 ## 20260828.1
 
 Change regex sequences to raw string to escape warnings
