@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260917.2
+
+Use the common regex for Illumina run folders in Runs
+
 ## 20260917.1
 
 Bugfix: Flush file and die to avoid runfolder transfer crash of small runs

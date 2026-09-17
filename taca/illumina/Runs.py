@@ -11,6 +11,7 @@ from datetime import datetime
 from flowcell_parser.classes import LaneBarcodeParser, RunParser, SampleSheetParser
 
 from taca.utils import misc
+from taca.utils.filesystem import RUN_RE_ILLUMINA
 from taca.utils.misc import send_mail
 
 logger = logging.getLogger(__name__)
@@ -47,8 +48,7 @@ class Run:
         self.run_dir = os.path.abspath(run_dir)
         self.software = software
         self.id = os.path.basename(os.path.normpath(run_dir))
-        pattern = r"(\d{6,8})_([ST-]*\w+\d+)_\d+_([AB]?)([A-Z0-9\-]+)"
-        m = re.match(pattern, self.id)
+        m = re.match(RUN_RE_ILLUMINA, self.id)
         self.date = m.group(1)
         self.instrument = m.group(2)
         self.position = m.group(3)
