@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260922.1
+
+Update nextseq regex for backup
+
 ## 20260921.2
 
 Use the common regex for Illumina and Element run folders in bioinfo tab script
