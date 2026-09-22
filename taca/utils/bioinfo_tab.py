@@ -12,6 +12,7 @@ from taca.element.Aviti_Runs import Aviti_Run
 from taca.nanopore.ONT_run_classes import ONT_RUN_PATTERN, ONT_run
 from taca.utils import statusdb
 from taca.utils.config import CONFIG
+from taca.utils.filesystem import RUN_RE_ELEMENT, RUN_RE_ILLUMINA
 from taca.utils.misc import send_mail
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,9 @@ def collect_runs():
 
     # Pattern explained:
     # 6-8Digits_(maybe ST-)AnythingLetterornumberNumber_Number_AorBLetterornumberordash
-    illumina_rundir_re = re.compile(r"\d{6,8}_[ST-]*\w+\d+_\d+_[AB]?[A-Z0-9\-]+")
+    illumina_rundir_re = re.compile(RUN_RE_ILLUMINA)
     # E.g. 20250121_AV242106_B2425434199
-    element_rundir_re = re.compile(r"\d{8}_AV242106_[AB]\d+")
+    element_rundir_re = re.compile(RUN_RE_ELEMENT)
 
     for inst_brand in CONFIG["bioinfo_tab"]["data_dirs"]:
         for data_dir in CONFIG["bioinfo_tab"]["data_dirs"][inst_brand]:

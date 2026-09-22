@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260921.2
+
+Use the common regex for Illumina and Element run folders in bioinfo tab script
+
 ## 20260917.2
 
 Use the common regex for Illumina run folders in Runs
