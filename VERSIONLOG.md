@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260922.1
+
+Update nextseq regex for backup
+
 ## 20260917.2
 
 Use the common regex for Illumina run folders in Runs
