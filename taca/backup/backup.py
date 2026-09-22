@@ -194,7 +194,7 @@ class backup_utils:
             run_type = "miseq"
         elif re.match(r"^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]{10}-SC3$", run):
             run_type = "MiSeqi100"
-        elif re.match(r"^\d{6}_[A-Z0-9]+_\d{3}_[A-Z0-9]+$", run):
+        elif re.match(r"^\d{6}_[A-Z0-9]+_\d+_[A-Z0-9]+$", run):
             run_type = "nextseq"
         elif re.match(r"^\d{8}_[A-Z0-9]+_\d{4}_[A-Z0-9]+$", run):
             run_type = "NovaSeqXPlus"
