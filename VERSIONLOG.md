@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20260923.1
+
+Add small delay for runfolder tar to allow filsystem to catch up 
+
 ## 20260922.1
 
 Update nextseq regex for backup
@@ -14,7 +18,7 @@ Use the common regex for Illumina run folders in Runs
 
 ## 20260917.1
 
-Bugfix: Flush file and die to avoid runfolder transfer crash of small runs
+Bugfix: Flush file and dir to avoid runfolder transfer crash of small runs
 
 ## 20260828.1
 
