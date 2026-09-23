@@ -234,7 +234,8 @@ def transfer_runfolder(run_dir, pid, exclude_lane):
             "Please check the sample sheet and try again."
         )
         raise e
-    time.sleep(2)  # Sleep for a second to make sure the filesystem metadata is updated before tar (needed for networked filesystems)
+    # Sleep for a second to make sure the filesystem metadata is updated before tar (needed for networked filesystems)
+    time.sleep(2)
     # Create a tar archive of the runfolder
     dir_name = os.path.basename(run_dir)
     archive = run_dir + "_" + "_".join(pid_list) + ".tar"
