@@ -2,7 +2,7 @@
 
 ## 20260923.1
 
-Add small delay for runfolder tar to allow filsystem to catch up 
+Add small delay for runfolder tar to allow filsystem to catch up
 
 ## 20260922.1
 
