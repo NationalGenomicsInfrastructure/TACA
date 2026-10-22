@@ -288,7 +288,7 @@ class Run:
         if self.run_type == "Cytoprofiling":
             self.flowcell_id = self.run_name[
                 1:
-            ]  # Teton runs don't have FlowcellID in the RunParameters.json, the PID is used instead
+            ]  # Cytos runs don't have FlowcellID in the RunParameters.json, the PID is used instead
         else:
             self.flowcell_id = run_parameters.get("FlowcellID")
         self.cycles = run_parameters.get("Cycles", {"R1": 0, "R2": 0, "I1": 0, "I2": 0})

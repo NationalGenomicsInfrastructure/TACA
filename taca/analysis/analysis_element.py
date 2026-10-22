@@ -123,9 +123,7 @@ def run_preprocessing(given_run):
         #### Transfer status ####
         transfer_status = run.get_transfer_status()
         if transfer_status == "not started":
-            if run.run_type == "Cytoprofiling":
-                run.move_pressure_check_dir()
-            else:
+            if run.run_type != "Cytoprofiling":
                 demux_results_dirs = glob.glob(
                     os.path.join(run.run_dir, "Demultiplexing_*")
                 )
@@ -185,13 +183,9 @@ def run_preprocessing(given_run):
         logger.info("Starting processing of all runs in data directories")
         data_dirs = CONFIG.get("element_analysis").get("data_dirs")
         for data_dir in data_dirs:
-            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID (PID for teton runs)
+            # Run folder looks like DATE_*_*, the last section is the FC side (A/B) and ID (PID for Cytos runs)
             runs = glob.glob(os.path.join(data_dir, "[1-9]*_*_*"))
             for run in runs:
-                if "FlowcellPressureCheck" in run:
-                    # Skip the pressure check runs (Teton runs)
-                    logger.info(f"Skipping {run}")
-                    continue
                 try:
                     _process(run)
                 except Exception as e:
