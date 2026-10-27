@@ -73,7 +73,7 @@ class backup_utils:
                 re.match(filesystem.RUN_RE_ILLUMINA, run.name)
                 or re.match(filesystem.RUN_RE_ONT, run.name)
                 or re.match(filesystem.RUN_RE_ELEMENT, run.name)
-                or re.match(filesystem.RUN_RE_TETON, run.name)
+                or re.match(filesystem.RUN_RE_CYTOS, run.name)
             ):
                 logger.error(f"Given run {self.run} did not match a FC pattern")
                 raise SystemExit
@@ -97,7 +97,7 @@ class backup_utils:
                         re.match(filesystem.RUN_RE_ILLUMINA, item)
                         or re.match(filesystem.RUN_RE_ONT, item)
                         or re.match(filesystem.RUN_RE_ELEMENT, item)
-                        or re.match(filesystem.RUN_RE_TETON, item)
+                        or re.match(filesystem.RUN_RE_CYTOS, item)
                     ) and item not in self.runs:
                         run_type = self._get_run_type(item)
                         archive_path = self.archive_dirs[run_type]
@@ -130,7 +130,7 @@ class backup_utils:
                     re.match(filesystem.RUN_RE_ILLUMINA, run_dir)
                     or re.match(filesystem.RUN_RE_ONT, run_dir)
                     or re.match(filesystem.RUN_RE_ELEMENT, run_dir)
-                    or re.match(filesystem.RUN_RE_TETON, run_dir)
+                    or re.match(filesystem.RUN_RE_CYTOS, run_dir)
                 ):
                     continue
                 if not (
@@ -205,7 +205,7 @@ class backup_utils:
         ):
             run_type = "promethion"
         elif re.match(filesystem.RUN_RE_ELEMENT, run) or re.match(
-            filesystem.RUN_RE_TETON, run
+            filesystem.RUN_RE_CYTOS, run
         ):
             run_type = "aviti"
         else:
