@@ -505,6 +505,18 @@ class ONT_run:
             f"{self.run_name}: Transferring to {self.transfer_details['host']}..."
         )
 
+        remote_path = self.destination
+        if remote_path is None:
+            remote_path = ""
+        else:
+            remote_path = str(remote_path).strip()
+
+        remote_target = (
+            f"{self.transfer_details['user']}@{self.transfer_details['host']}:{remote_path}"
+            if remote_path
+            else f"{self.transfer_details['user']}@{self.transfer_details['host']}:"
+        )
+
         command = (
             "rsync"
             + " -aq"  # archive, quiet
@@ -512,7 +524,7 @@ class ONT_run:
             + f" --chown={self.transfer_details['owner']}"
             + f" --chmod={self.transfer_details['permissions']}"
             + f" {self.run_abspath}"
-            + f" {self.transfer_details['user']}@{self.transfer_details['host']}:{self.destination}"
+            + f" {remote_target}"
             + f"; echo $? > {os.path.join(self.run_abspath, '.rsync_exit_status')}"
         )
 
