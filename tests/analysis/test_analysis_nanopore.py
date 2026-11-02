@@ -1,7 +1,5 @@
 import importlib
 import logging
-import os
-import subprocess
 from io import StringIO
 from unittest.mock import patch
 
