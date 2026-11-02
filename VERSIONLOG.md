@@ -2,7 +2,7 @@
 
 ## 20261102.1
 
-Fix rsync error for promethion
+Remove rsync to HPC and Toulligqc for ONT runs
 
 ## 20261022.1
 
