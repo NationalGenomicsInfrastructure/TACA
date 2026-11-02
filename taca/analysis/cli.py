@@ -106,9 +106,9 @@ def element_updatedb(run):
     default=None,
     help="Process only a particular run",
 )
-def ont_transfer(run):
+def ont_process(run):
     """Find and process all runs"""
-    analysis_nanopore.ont_transfer(run)
+    analysis_nanopore.ont_process(run)
 
 
 @analysis.command()
