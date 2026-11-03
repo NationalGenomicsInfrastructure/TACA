@@ -53,11 +53,8 @@ def process_run(run: ONT_run):
         - Ensure all necessary files to proceed with processing are present
         - Update the StatusDB entry and set to "finished"
         - Copy HTML report to GenStat
-        - Generate and publish ToulligQC report
         - Copy metadata to ngi-nas-ns
-        - Transfer run to cluster
-        - Update transfer log
-        - Archive run
+        - Archive run to nosync folder
 
     Any errors raised here-in should be sent with traceback as an email.
     """
@@ -81,41 +78,19 @@ def process_run(run: ONT_run):
     logger.info(f"{run.run_name}: Putting HTML report on GenStat...")
     run.copy_html_report()
 
-    # Generate and publish ToulligQC report
-    logger.info(f"{run.run_name}: Generating and publishing ToulligQC report...")
-    run.toulligqc_report()
-
     # Copy metadata
     logger.info(f"{run.run_name}: Copying metadata...")
     run.copy_metadata()
 
-    # Transfer to analysis server
-    if run.transfer_status == "not started":
-        logger.info(f"{run.run_name}: Starting transfer...")
-        run.transfer()
-    elif run.transfer_status == "ongoing":
-        raise WaitForRun(f"{run.run_name}: Transfer is ongoing, skipping.")
-    elif run.transfer_status == "rsync done":
-        logger.info(f"{run.run_name}: Transfer complete. Archiving...")
-        run.remove_transfer_indicator()
-        run.archive_run()
-        run.update_transfer_log()
-    elif run.transfer_status == "rsync failed":
-        raise AssertionError(f"{run.run_name}: Transfer failed, please investigate.")
-    elif run.transfer_status == "transferred":
-        raise WaitForRun(
-            f"{run.run_name}: Run is already logged as transferred, skipping."
-        )
-    else:
-        raise AssertionError(
-            f"{run.run_name}: Undetermined transfer status, please investigate."
-        )
+    # archive run
+    logger.info(f"{run.run_name}: Archiving run...")
+    run.archive_run()
 
 
-def ont_transfer(run_abspath: str | None):
+def ont_process(run_abspath: str | None):
     """CLI entry function.
 
-    Find finished ONT runs in ngi-nas and transfer to HPC cluster.
+    Find finished ONT runs in ngi-nas and process them.
     """
 
     if run_abspath:

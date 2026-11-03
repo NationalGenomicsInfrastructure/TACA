@@ -1,7 +1,5 @@
 import importlib
 import logging
-import os
-import subprocess
 from io import StringIO
 from unittest.mock import patch
 
@@ -87,22 +85,6 @@ def test_ont_transfer(create_dirs, run_properties, caplog):
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_minknow_json").start()
     patch("taca.nanopore.ONT_run_classes.ONT_run.parse_pore_activity").start()
 
-    # Mock subprocess.run ONLY for ToulligQC
-    original_run = subprocess.run
-
-    def mock_run_side_effect(*args, **kwargs):
-        if "toulligqc" in args[0]:
-            os.mkdir(f"{args[0][6]}/toulligqc_report")
-            open(f"{args[0][6]}/toulligqc_report/report.html", "w").close()
-            return mock_run
-        else:
-            return original_run(*args, **kwargs)
-
-    mock_run = patch(
-        "taca.nanopore.ONT_run_classes.subprocess.run", side_effect=mock_run_side_effect
-    ).start()
-    mock_run.returncode = 0
-
     # Reload module to implement mocks
     importlib.reload(analysis_nanopore)
 
@@ -121,7 +103,7 @@ def test_ont_transfer(create_dirs, run_properties, caplog):
     assert not run_properties
 
     # Start testing
-    analysis_nanopore.ont_transfer(run_abspath=None)
+    analysis_nanopore.ont_process(run_abspath=None)
 
     # Stop mocks
     patch.stopall()

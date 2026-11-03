@@ -25,23 +25,13 @@ def make_ONT_test_config(tmp: tempfile.TemporaryDirectory) -> dict:
             - 'qc'
         instruments:
             promethion:
-                transfer_log: {tmp.name}/log/transfer_promethion.tsv
                 archive_dir: {tmp.name}/ngi_data/sequencing/promethion/nosync
                 metadata_dir: {tmp.name}/ngi-nas-ns/promethion_data
-                destination: {tmp.name}/miarka/promethion/
             minion:
-                transfer_log: {tmp.name}/log/transfer_minion.tsv
                 archive_dir: {tmp.name}/ngi_data/sequencing/minion/nosync
                 metadata_dir: {tmp.name}/ngi-nas-ns/minion_data
-                destination: {tmp.name}/miarka/minion/
         minknow_reports_dir: {tmp.name}/ngi-internal/minknow_reports/
-        toulligqc_reports_dir: {tmp.name}/ngi-internal/other_reports/toulligqc_reports/
-        toulligqc_executable: toulligqc
-        transfer_details:
-            owner: ":owner"
-            permissions: "Dg+s,g+rw"
-            user: "user"
-            host: server.domain.se"""
+        """
 
     test_config_yaml = yaml.safe_load(test_config_yaml_string)
 

@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20261102.1
+
+Remove rsync to HPC and Toulligqc for ONT runs
+
 ## 20261022.1
 
 Replace Teton with Cytos
