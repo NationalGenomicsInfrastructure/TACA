@@ -19,8 +19,14 @@ from taca.organise import organise
     default=False,
     help="Include pod5 files when organising Nanopore flowcells. Default is False.",
 )
+@click.option(
+    "--exclude_unclassified",
+    is_flag=True,
+    default=False,
+    help="Exclude unclassified files when organising Nanopore flowcells. Default is False.",
+)
 @click.argument("flowcells")
-def organise_flowcells(flowcells, project, include_pod5):
+def organise_flowcells(flowcells, project, include_pod5, exclude_unclassified):
     """Organise FLOWCELLS.
 
     FLOWCELLS is the name of one or more sequencing flowcells, separated by a comma. e.g.:
@@ -28,4 +34,4 @@ def organise_flowcells(flowcells, project, include_pod5):
     """
     flowcells_to_organise = flowcells.split(",")
     for fc in flowcells_to_organise:
-        organise.organise_flowcell(fc, project, include_pod5)
+        organise.organise_flowcell(fc, project, include_pod5, exclude_unclassified)

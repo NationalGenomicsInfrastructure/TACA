@@ -46,7 +46,9 @@ class Flowcell:
 class NanoporeFlowcell(Flowcell):
     """Defines a Nanopore Flowcell"""
 
-    def __init__(self, flowcell, project_id, include_pod5=False):
+    def __init__(
+        self, flowcell, project_id, include_pod5=False, exclude_unclassified=False
+    ):
         super().__init__(flowcell, project_id)
         self.destination_path = CONFIG.get("organise").get("nanopore_path")
         self.organised_project_dir = os.path.join(self.destination_path, project_id)
@@ -54,6 +56,7 @@ class NanoporeFlowcell(Flowcell):
         self.tar_path = os.path.join(self.organised_project_dir, self.tar_file)
         self.md5_path = self.tar_path + ".md5"
         self.include_pod5 = include_pod5
+        self.exclude_unclassified = exclude_unclassified
 
     def organise_data(self):
         """Tarball data into ONT_TAR"""
@@ -65,6 +68,14 @@ class NanoporeFlowcell(Flowcell):
                 tar_command = [
                     "tar",
                     *(["--exclude=pod5*"] if not self.include_pod5 else []),
+                    *(
+                        [
+                            f"--exclude={self.fc_id}/fastq_pass/unclassified",
+                            f"--exclude={self.fc_id}/fastq_fail/unclassified",
+                        ]
+                        if self.exclude_unclassified
+                        else []
+                    ),
                     "-cvf",
                     self.tar_path,
                     self.fc_id,
