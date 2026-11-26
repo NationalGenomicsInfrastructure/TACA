@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20261126.1
+
+Add option to exclude unclassified from ONT tar
+
 ## 20261102.1
 
 Remove rsync to HPC and Toulligqc for ONT runs
